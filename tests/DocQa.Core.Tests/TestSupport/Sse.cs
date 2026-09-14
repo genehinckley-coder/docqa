@@ -42,10 +42,14 @@ internal sealed class StallingStream(byte[] prefix, TimeSpan cap) : ReadOnlyTest
 {
     private readonly CancellationTokenSource _disposed = new();
     private readonly TaskCompletionSource<string> _ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _disposedSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _position;
 
     /// <summary>How the stall ended: <c>cancelled</c>, <c>disposed</c> or <c>cap</c>.</summary>
     public Task<string> Ended => _ended.Task;
+
+    /// <summary>Completes when the body is disposed, whether or not a read was pending.</summary>
+    public Task Disposed => _disposedSignal.Task;
 
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
@@ -76,9 +80,23 @@ internal sealed class StallingStream(byte[] prefix, TimeSpan cap) : ReadOnlyTest
         if (disposing)
         {
             _disposed.Cancel();
+            _disposedSignal.TrySetResult();
         }
 
         base.Dispose(disposing);
+    }
+}
+
+/// <summary>A response body that reads normally, then throws when it is disposed.</summary>
+internal sealed class ThrowingOnDisposeStream(byte[] body) : MemoryStream(body)
+{
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing)
+        {
+            throw new IOException("Closing the body failed (simulated).");
+        }
     }
 }
 

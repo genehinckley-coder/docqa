@@ -48,6 +48,22 @@ public static class EffortLevelExtensions
     };
 
     /// <summary>
+    /// Returns the level's name as the UI shows it.
+    /// </summary>
+    /// <param name="level">The effort level.</param>
+    /// <returns>One of <c>Low</c>, <c>Medium</c>, <c>High</c>, <c>Extra high</c> or <c>Max</c>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="level"/> is not a defined value.</exception>
+    public static string ToDisplayName(this EffortLevel level) => level switch
+    {
+        EffortLevel.Low => "Low",
+        EffortLevel.Medium => "Medium",
+        EffortLevel.High => "High",
+        EffortLevel.XHigh => "Extra high",
+        EffortLevel.Max => "Max",
+        _ => throw new ArgumentOutOfRangeException(nameof(level), level, "Not a defined effort level."),
+    };
+
+    /// <summary>
     /// Returns the SDK's value for <c>output_config.effort</c>.
     /// </summary>
     /// <param name="level">The effort level.</param>

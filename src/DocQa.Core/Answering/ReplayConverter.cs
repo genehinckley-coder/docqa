@@ -96,39 +96,17 @@ public static class ReplayConverter
         // The SDK (12.47.0) does not recognize a char_location citation whose document_title is null, which
         // the API allows for an untitled document. This app always sends titles, so it should not happen;
         // if it does, the citation is rebuilt from its JSON rather than the whole reply being refused.
-        return FromJson(citation.Json)
+        AnswerCitation parsed = AnswerCitation.TryFromJson(citation.Json)
             ?? throw new NotSupportedException("A char_location citation is missing its text or offsets and cannot be replayed.");
-    }
-
-    private static CitationCharLocationParam? FromJson(JsonElement json)
-    {
-        if (json.ValueKind != JsonValueKind.Object
-            || !json.TryGetProperty("cited_text", out JsonElement citedText) || citedText.ValueKind != JsonValueKind.String
-            || !TryGetInt64(json, "document_index", out long documentIndex)
-            || !TryGetInt64(json, "start_char_index", out long start)
-            || !TryGetInt64(json, "end_char_index", out long end))
-        {
-            return null;
-        }
 
         return new CitationCharLocationParam
         {
-            CitedText = citedText.GetString()!,
-            DocumentIndex = documentIndex,
-            DocumentTitle = json.TryGetProperty("document_title", out JsonElement title) && title.ValueKind == JsonValueKind.String
-                ? title.GetString()
-                : null,
-            StartCharIndex = start,
-            EndCharIndex = end,
+            CitedText = parsed.CitedText,
+            DocumentIndex = parsed.DocumentIndex,
+            DocumentTitle = parsed.DocumentTitle,
+            StartCharIndex = parsed.StartCharIndex,
+            EndCharIndex = parsed.EndCharIndex,
         };
-    }
-
-    private static bool TryGetInt64(JsonElement json, string name, out long value)
-    {
-        value = 0;
-        return json.TryGetProperty(name, out JsonElement element)
-            && element.ValueKind == JsonValueKind.Number
-            && element.TryGetInt64(out value);
     }
 
     private static string TypeName(JsonElement type) =>

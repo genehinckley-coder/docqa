@@ -1,3 +1,4 @@
+using DocQa.Core.Answering;
 using DocQa.Core.Configuration;
 using DocQa.Core.Corpus;
 using DocQa.Core.Tests.TestSupport;
@@ -66,6 +67,26 @@ public sealed class ServiceCollectionExtensionsTests
 
         Assert.IsType<CorpusState.Loading>(services.GetRequiredService<CorpusService>().State);
         Assert.IsType<ApiTokenCounter>(services.GetRequiredService<ITokenCounter>());
+    }
+
+    [Fact]
+    public async Task TheAnswerService_Resolves_WithoutReadingTheKeyFile_AndReportsItMissingWhenItAnswers()
+    {
+        using ServiceProvider services = Build(TestSettings.Valid());
+
+        IAnswerService answers = Assert.IsType<AnswerService>(services.GetRequiredService<IAnswerService>());
+
+        Exception? ex = await Record.ExceptionAsync(async () =>
+        {
+            await foreach (AnswerEvent _ in answers.StreamAsync(
+                AnswerSettings.Default, AnswerHarness.FirstQuestion, TestContext.Current.CancellationToken))
+            {
+            }
+        });
+
+        AnswerFailedException failure = Assert.IsType<AnswerFailedException>(ex);
+        Assert.Equal(AnswerFailureKind.Credentials, failure.Kind);
+        Assert.Contains(Path.Combine(ContentRoot, "key.txt"), failure.Message, StringComparison.Ordinal);
     }
 
     [Fact]

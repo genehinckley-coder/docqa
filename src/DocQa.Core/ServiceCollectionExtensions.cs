@@ -1,3 +1,4 @@
+using DocQa.Core.Answering;
 using DocQa.Core.ApiClient;
 using DocQa.Core.Configuration;
 using DocQa.Core.Corpus;
@@ -58,6 +59,12 @@ public static class ServiceCollectionExtensions
         // file is not read at startup.
         services.TryAddSingleton<ITokenCounter>(provider =>
             new ApiTokenCounter(() => provider.GetRequiredService<IAnthropicClientProvider>()));
+        // Like the counter, the answer service resolves the client provider only when it answers.
+        services.TryAddSingleton<IAnswerService>(provider => new AnswerService(
+            () => provider.GetRequiredService<IAnthropicClientProvider>(),
+            provider.GetRequiredService<IOptions<DocQaOptions>>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<AnswerService>>()));
         services.TryAddSingleton<CorpusLoader>();
         services.TryAddSingleton<CorpusService>();
         services.AddHostedService<CorpusStartupLoader>();
