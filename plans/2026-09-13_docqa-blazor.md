@@ -1536,6 +1536,71 @@ the code.
      `Loading`.
    - **What it led to:** the event's doc comment now states the contract.
 
+**2026-09-14, item 4.** Done on branch `item-4-answer-service`. `AnswerService` streams one turn in a
+single pass. It sends `UsageStarted` as soon as `message_start` arrives and `Completed` with the
+final message, sources, usage, cost, elapsed time and stop warning. Stop and each level's timeout
+are told apart by which token was cancelled.
+- **Tests:** 333 offline Core tests (67 of them new) and 19 Web tests pass.
+  - No live test for this item (user decision, 2026-09-14).
+  - The $2 sump question stays in item 11, because it also needs item 5's quote checker.
+- **Cost:** none. Nothing billed was called.
+- **Delivered for later items:**
+  - `IAnswerService` and `AnswerService`, registered in DI, for item 6
+  - `AnswerSettings`, for items 6 and 8
+  - `TokenUsage` and `TurnCost` (per bucket, with `Add` for totals), for items 6 and 10
+  - `AnswerCitation`, the numbered `Sources`, and `TextBlockCompleted` with its `[n]` numbers, for
+    items 5, 8 and 9
+  - `StopWarning`, and `AnswerFailedException` with `AnswerFailureKind`, for items 6 and 8
+  - `EffortLevel.ToDisplayName`, for item 8
+- **Additions beyond the plan's text:**
+  - **A sixth event, `ThinkingRedacted`,** so a redacted thinking block can be shown as one, as the
+    prototype showed "(redacted)".
+  - **The client is resolved when an answer is requested,** as the token counter resolves it. A
+    missing or malformed key file becomes a `Credentials` failure the UI can show; it does not break
+    startup.
+  - **Citations are read into the app's own `AnswerCitation` record, from their JSON.** The SDK cannot
+    read a citation with a null title (item 1). `ReplayConverter` now shares the same parser.
+  - **Failures the plan does not list** are `Unexpected`. They include a cancellation that neither
+    Stop nor a timeout asked for.
+  - **User-facing failure messages are fixed short strings.** The full exception goes to the log.
+- **Findings:**
+  - **The SDK closes the HTTP response inside its final `MoveNextAsync`, after `message_stop`.**
+    - **The risk:** a failure there would have discarded a complete, paid answer as a network error.
+      A guard around the enumerator's disposal cannot catch it.
+    - **The fix:** once `message_stop` has arrived, a failure is logged as a warning, and the answer
+      completes from the aggregator, which already holds the whole message.
+  - **The SDK's timeout on the response headers throws a bare `TaskCanceledException`,** with no inner
+    exception or other marker. It is recognized by how long the request ran: at least 95% of the
+    view's timeout.
+  - **Abandoning the enumeration disposes the HTTP body.** A test pins this.
+  - **A Stop that lands after the response finished still yields `Completed`.** This is deliberate,
+    per item 6: a finished answer has been paid for, so it is kept. `IAnswerService` documents it.
+
+**Adversarial review.** One read-only review by a second model (Copilot CLI, `gpt-5.6-luna`). It found
+no Critical or High issue. Three findings were fixed and two rejected, and the test written for one
+of them exposed the defect above.
+1. **Medium, fixed:** a TTL breakdown missing one of its fields read that field as zero, which
+   under-priced the write.
+   - The breakdown is now read from its JSON.
+   - Any write it does not account for is priced at the 1-hour rate, so the cost errs high.
+2. **Medium, fixed:** an exception while disposing the stream could replace the answer's outcome.
+   - Disposal failures are now logged as a warning.
+   - Its test found that the SDK disposes the response earlier, inside the final read (see
+     Findings), so that path is handled too.
+3. **Medium, fixed:** every cancellation that neither Stop nor the service's timer caused was reported
+   as a timeout.
+   - Only one that lasted as long as the SDK's header timeout still counts as a timeout.
+   - Any other is `Unexpected`.
+4. **Medium, rejected:** "Stop or the timeout landing after the final event should prevent
+   `Completed`."
+   - **Why rejected:** item 6 decides the opposite. Once the response has finished, the answer is paid
+     for, so it is kept.
+5. **Low, rejected:** "stream creation sits outside the mapped `try`, so a setup failure escapes
+   unmapped."
+   - **Why rejected:** `MessageService.CreateStreaming` and `SseAggregator.CollectAsync` are both
+     async iterators (checked in the 12.47.0 assembly). They do nothing until the first
+     `MoveNextAsync`, which is inside the mapped `try`.
+
 ## Plan Review Log
 
 **2026-09-13, subagent review of the first draft.** No critical findings; four high, seven
