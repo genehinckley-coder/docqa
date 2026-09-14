@@ -1,0 +1,61 @@
+using DocQa.Core.ApiClient;
+using DocQa.Core.Configuration;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace DocQa.Core;
+
+/// <summary>
+/// Registers DocQa's core services.
+/// </summary>
+public static class ServiceCollectionExtensions
+{
+    /// <summary>
+    /// Registers <see cref="DocQaOptions"/> with startup validation, the system clock, and the
+    /// Anthropic client provider.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configuration">Configuration containing the <c>DocQa</c> section.</param>
+    /// <param name="contentRootPath">The folder relative paths in the options resolve against.</param>
+    /// <returns><paramref name="services"/>, for chaining.</returns>
+    public static IServiceCollection AddDocQaCore(
+        this IServiceCollection services, IConfiguration configuration, string contentRootPath)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentRootPath);
+
+        services.AddOptions<DocQaOptions>()
+            .Bind(configuration.GetSection(DocQaOptions.SectionName))
+            .PostConfigure(options =>
+            {
+                options.CorpusDirectory = ResolvePath(options.CorpusDirectory, contentRootPath);
+                options.ApiKeyPath = ResolvePath(options.ApiKeyPath, contentRootPath);
+                options.StateFilePath = ResolvePath(options.StateFilePath, contentRootPath);
+            })
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DocQaOptions>, DocQaOptionsValidator>());
+
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Built on first use, so the key file is read only when a request is about to be made, and a
+        // missing key surfaces as a failure the UI can show instead of stopping the app from starting.
+        services.TryAddSingleton<IAnthropicClientProvider>(provider =>
+        {
+            DocQaOptions options = provider.GetRequiredService<IOptions<DocQaOptions>>().Value;
+            return AnthropicClientProvider.Create(
+                ApiKeyLoader.Load(options.ApiKeyPath),
+                options.RequestTimeouts,
+                [new RetryLoggingHandler(provider.GetRequiredService<ILogger<RetryLoggingHandler>>())]);
+        });
+
+        return services;
+    }
+
+    private static string ResolvePath(string path, string contentRootPath) =>
+        string.IsNullOrWhiteSpace(path) ? path : Path.GetFullPath(path, contentRootPath);
+}
