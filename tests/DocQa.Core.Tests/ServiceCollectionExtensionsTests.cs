@@ -1,6 +1,10 @@
 using DocQa.Core.Configuration;
+using DocQa.Core.Corpus;
 using DocQa.Core.Tests.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace DocQa.Core.Tests;
@@ -54,8 +58,27 @@ public sealed class ServiceCollectionExtensionsTests
         Assert.Same(TimeProvider.System, services.GetRequiredService<TimeProvider>());
     }
 
+    [Fact]
+    public void TheCorpusService_Resolves_WithoutReadingTheKeyFile()
+    {
+        // TestSettings' key file does not exist, so reading it here would throw.
+        using ServiceProvider services = Build(TestSettings.Valid());
+
+        Assert.IsType<CorpusState.Loading>(services.GetRequiredService<CorpusService>().State);
+        Assert.IsType<ApiTokenCounter>(services.GetRequiredService<ITokenCounter>());
+    }
+
+    [Fact]
+    public void TheCorpusLoad_StartsWithTheHost()
+    {
+        using ServiceProvider services = Build(TestSettings.Valid());
+
+        Assert.Single(services.GetServices<IHostedService>(), service => service is CorpusStartupLoader);
+    }
+
     private static ServiceProvider Build(Dictionary<string, string?> settings) =>
         new ServiceCollection()
+            .AddSingleton(typeof(ILogger<>), typeof(NullLogger<>))
             .AddDocQaCore(TestSettings.ToConfiguration(settings), ContentRoot)
             .BuildServiceProvider();
 }

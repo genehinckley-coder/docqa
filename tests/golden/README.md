@@ -11,6 +11,21 @@ to reproduce each one byte for byte (plan item 2).
 - **Format.** UTF-8 with no BOM, `\n` line endings, and no trailing newline. `.gitattributes`
   marks these files `-text`, so git never rewrites them.
 
+## `blocks.json`
+
+The prototype's assembled document blocks, from its own `assemble_corpus()` (plan item 3).
+`CorpusBlocksGoldenTests` requires DocQA's blocks to match them field for field and in order:
+title, context, citation setting, the 1-hour breakpoint on the last block only, and each text's
+length in code points and SHA-256.
+
+It also records `prototype_tokens`, the prototype's `count_tokens` total for exactly these blocks
+(system prompt, blocks and a `"?"` question, on `claude-opus-5`). The live
+`CorpusTokenCountLiveTests` requires DocQA's request to count the same on every selectable model.
+The script copies the total from the prototype's `.notrag_state.json`, and refuses to unless
+that file's fingerprint is the fingerprint of these blocks.
+
+## Regenerating
+
 Do not edit these files by hand. To regenerate them, from the repository root:
 
 ```

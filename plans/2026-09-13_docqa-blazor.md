@@ -89,6 +89,7 @@ reason less thoroughly.
   another.
 - **The corpus is 199,749 tokens on both models.** Measured with the free `count_tokens`
   call on 2026-09-13, with the system prompt included; both models use the same tokenizer.
+  **Confirmed at item 3** for the C# request, on both models.
   The corpus costs in the **Cost Reference** are therefore exact arithmetic on a measured
   count. Output lengths, tail writes and the question's few dozen tokens are not.
 - **The design is the visual spec, not the data spec.** Its data is placeholder: document
@@ -1485,6 +1486,55 @@ Each finding was checked by running both extractors on the case it describes.
    - A stale or missing golden file already fails `GoldenFiles_CoverExactlyTheLabeledParts`.
    - The script can only extract the prototype's six labeled files, since the prototype's
      `extract_corpus()` refuses any other. The pattern therefore never sees another name.
+
+**2026-09-14, item 3.** Done on branch `item-3-corpus-assembly`. **Parity with the prototype's
+request holds:** the assembled blocks match the prototype's field for field, and the C# request
+counts exactly the prototype's 199,749 tokens, on both Opus 5 and Sonnet 5.
+- **Tests:** 266 offline Core tests (79 of them new) and 19 Web tests pass. The live token-count
+  test passes with `DOCQA_LIVE=1`; the other 4 live tests were not re-run.
+- **Live, and free:** `count_tokens` calls only. Counted on its own, Part 175 is about 102,061
+  tokens and Part 177 about 4,538. The six counts sum to 204,229, above the corpus total, because
+  each one carries the system prompt.
+- **Delivered for later items:**
+  - `Corpus` and `CorpusDocument`, the immutable snapshot, with each document's `CodePointIndex`
+    and paragraph ranges, for items 5, 6 and 9
+  - `CorpusService`, with its `Loading`, `Ready` and `Failed` states and a `StateChanged` event,
+    for items 8 and 10
+  - `FingerprintCheck.Describe`, the change report with the write cost on each model, for item 10
+- **Decisions (user, 2026-09-14):**
+  - Per-document token counts are kept, but a failure there does not stop the load. The first
+    failure ends the counting, and the documents from there on show no count.
+  - Item 3 adds no UI. The screens render the corpus state in items 8 and 10.
+- **Additions beyond the plan's text:**
+  - **The fingerprint is checked against what the SDK sends.** It is written field by field, as
+    planned, and a test compares that serialization with the blocks in a captured `count_tokens`
+    request. A field added to `MessageRequestBuilder` without being fingerprinted fails the test.
+  - **The golden token count is tied to its corpus.** `tools/generate_golden.py` copies the
+    prototype's 199,749 into `tests/golden/blocks.json` only if the prototype's state file
+    fingerprints the same blocks.
+  - **A failed reload is reported without losing the corpus.** The state stays `Ready`, with the
+    reason, and the current corpus stays in use.
+  - **The state file counts characters in code points,** as the prototype does, and treats a file
+    that names a document twice as malformed.
+- **Tooling note:** do not pass `-nologo` to `dotnet test`. Microsoft Testing Platform forwards it
+  to the test app, which then reports "Zero tests ran".
+
+**Adversarial review.** One read-only review by a second model (Copilot CLI, `gpt-5.6-luna`). It
+found no Critical or High issue, and both Medium findings were rejected after checking them against
+the code.
+1. **Medium, rejected:** "the state file accepts well-typed but invalid values, such as empty token
+   counts or a negative character count, so a file with the right fingerprint compares Unchanged."
+   - **Why rejected:** the comparison decides on the fingerprint alone, as the prototype's does. When
+     the recorded fingerprint equals the current one, the corpus did not change, whatever the other
+     fields say. They only feed the description of a change, where an odd value makes an odd message
+     but cannot hide the change. Writes are atomic, so a partial write cannot produce such a file.
+2. **Medium, rejected:** "a `StateChanged` handler can read a newer state than the one that raised
+   it."
+   - **Why rejected:** that is the contract. Every change raises a notification after it is made, and
+     handlers read the current state, so the last notification always reads the final state.
+     Delivering each state instead, as suggested, could hand a stale `Ready` to a handler after a newer
+     `Loading`.
+   - **What it led to:** the event's doc comment now states the contract.
 
 ## Plan Review Log
 
