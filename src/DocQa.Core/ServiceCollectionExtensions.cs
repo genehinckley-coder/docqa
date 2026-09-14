@@ -1,5 +1,6 @@
 using DocQa.Core.ApiClient;
 using DocQa.Core.Configuration;
+using DocQa.Core.Corpus;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -14,8 +15,8 @@ namespace DocQa.Core;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="DocQaOptions"/> with startup validation, the system clock, and the
-    /// Anthropic client provider.
+    /// Registers <see cref="DocQaOptions"/> with startup validation, the system clock, the Anthropic
+    /// client provider, and the corpus service, whose load starts in the background when the host starts.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">Configuration containing the <c>DocQa</c> section.</param>
@@ -52,6 +53,14 @@ public static class ServiceCollectionExtensions
                 options.RequestTimeouts,
                 [new RetryLoggingHandler(provider.GetRequiredService<ILogger<RetryLoggingHandler>>())]);
         });
+
+        // The counter resolves the client provider when it counts, not when it is constructed, so the key
+        // file is not read at startup.
+        services.TryAddSingleton<ITokenCounter>(provider =>
+            new ApiTokenCounter(() => provider.GetRequiredService<IAnthropicClientProvider>()));
+        services.TryAddSingleton<CorpusLoader>();
+        services.TryAddSingleton<CorpusService>();
+        services.AddHostedService<CorpusStartupLoader>();
 
         return services;
     }
