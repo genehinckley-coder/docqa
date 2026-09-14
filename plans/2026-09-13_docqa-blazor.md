@@ -131,9 +131,10 @@ reason less thoroughly.
     over the stream serves both the UI and the final message.
   - The `Effort` enum has an `Xhigh` member, which serializes to `"xhigh"`. A test pins all
     five wire strings.
-- **AngleSharp builds the same tree lxml does for these six files.** Not verified. lxml uses
-  libxml2's HTML parser, which does not follow the HTML5 parsing algorithm; AngleSharp
-  does. Item 2 checks this with a golden-file comparison.
+- **AngleSharp builds the same tree lxml does for these six files.** lxml uses libxml2's HTML
+  parser, which does not follow the HTML5 parsing algorithm; AngleSharp does. **Verified at
+  item 2:** the C# extraction of all six files is byte-identical to the prototype's, with no
+  accepted differences.
 - **Prices are for display only, never for behavior.** They were confirmed against the
   published pricing page on 2026-09-13; see **Cost Reference**.
 
@@ -1418,6 +1419,72 @@ prefix read.
      a block list, which could change the bytes of a prefix already cached. It is now
      refused instead. The app's own builders always produce block lists.
 - **Rejected:** none.
+
+**2026-09-14, item 2.** Done on branch `item-2-extraction`. **Golden parity holds:** the C#
+extraction of all six pages is byte-identical to the prototype's, on the first run. No
+difference needed fixing or accepting for the real corpus.
+- **Tests:** 187 offline Core tests (74 of them new) and 19 Web tests pass. Changing one byte of a
+  golden file made the parity check fail, naming the first differing character in context.
+- **How the goldens were made:** `tools/generate_golden.py` calls the prototype's
+  `extract_corpus()` in the prototype's own `.venv` (lxml 6.1.3, libxml2 2.11.9). The global Python
+  has lxml 6.1.1, which the prototype does not pin. The six pages are byte-identical in both
+  repositories.
+- **Delivered for later items:**
+  - `CorpusExtractor` and `ExtractedDocument`, for item 3
+  - `tools/generate_golden.py`, which item 3 extends for the assembled-block golden
+
+**Findings.**
+- **The parsers diverge on malformed markup that the six pages do not contain.** The adversarial
+  review found two cases, and a differential probe through both extractors found six more. This
+  port follows HTML5, which is what a browser shows a reader of the page. `ParserDivergenceTests`
+  pins each case, with the prototype's measured output. (User decision, 2026-09-14.)
+
+  | Input | Prototype (lxml) | This port (AngleSharp) |
+  |---|---|---|
+  | Text directly inside a `<table>`, or between rows | dropped | kept, as a paragraph before the table |
+  | A stray `</br>` | ignored | a line break |
+  | A stray `</p>` | ignored | a paragraph break |
+  | `&amp`, `&copy` and other legacy entities with no semicolon | left as written | decoded |
+  | `&#128;` to `&#159;` | C1 control characters | the windows-1252 characters, such as `€` |
+  | `&#0;` | dropped | U+FFFD, which is refused (below) |
+  | Raw C0 control characters other than tab, LF and CR | removed, as illegal in XML | form feed and U+001C–U+001F become spaces; the rest are kept |
+
+  These match in both parsers, with and without a doctype:
+  - an open `<p>` before a `<table>`
+  - `<td>` and `<tr>` outside a table
+  - nested tables and captions
+  - unclosed `<p>` and `<li>`, and a `<div>` inside a `<p>`
+  - `<noscript>`, CDATA, processing instructions and Word's `<o:p>`
+  - `<pre>` and `&#13;`
+- **Addition beyond the plan's text: U+FFFD is refused.**
+  - **Why:** a wrong or missing charset, or invalid bytes, decode silently to U+FFFD. That text
+    would be sent, cited and quote-checked with characters missing.
+  - **What:** extraction now fails and names the file, as it already does for CR and U+00A0.
+  - **Scope:** this is stricter than the prototype, which has no such check. None of the six
+    pages contains U+FFFD. (User decision, 2026-09-14.)
+- **Python's whitespace is not .NET's.** Python's `\s`, `split()` and `strip()` include
+  U+001C–U+001F; `char.IsWhiteSpace` and .NET's regex `\s` do not. `PythonWhitespace` copies
+  Python's set, and a test checks it against Python's for every BMP character. In practice libxml2
+  removes those four characters before the prototype's pattern sees them (see the table).
+- **The corpus pages have a doctype** (`<!DOCTYPE html>`), so they parse in no-quirks mode. The
+  container is found by exact class token, not by a CSS selector. The match is therefore
+  case-sensitive in either mode, as lxml's `find_class` is.
+- **Every page has a second `billtext-scale`,** inside a script. Script text is not markup, so it
+  never counts as a second container.
+
+**Adversarial review.** One read-only review by a second model (Copilot CLI, `gpt-5.6-luna`).
+Each finding was checked by running both extractors on the case it describes.
+1. **High, confirmed, accepted as a divergence:** foster-parented table text (see the table).
+2. **Medium, confirmed, accepted as a divergence:** a stray `</br>`.
+3. **Medium, rejected:** "a parser or encoding exception can escape unwrapped."
+   - **Why rejected:** nothing but `CorpusExtractionException` escaped on any probe: empty input,
+     an unknown charset, invalid UTF-8, odd-length UTF-16, random binary, or NUL bytes.
+   - **What it led to:** the probe found the silent U+FFFD, which is now refused (above).
+4. **Low, rejected:** "the golden script leaves stale files, and its file-name pattern is
+   case-sensitive."
+   - A stale or missing golden file already fails `GoldenFiles_CoverExactlyTheLabeledParts`.
+   - The script can only extract the prototype's six labeled files, since the prototype's
+     `extract_corpus()` refuses any other. The pattern therefore never sees another name.
 
 ## Plan Review Log
 
