@@ -62,6 +62,9 @@ reason less thoroughly.
     - plain-text document blocks with `title`, `context` and `citations`
     - a 1-hour breakpoint on the last document block, and a top-level 5-minute breakpoint
       covering the conversation tail
+  - **Added at item 1:** on a follow-up, an explicit 5-minute breakpoint on the previous
+    question, so that the follow-up reads the conversation history instead of rewriting it.
+    See item 4.
     - the same system prompt, document labels and context template, copied verbatim
   - Now parameters:
     - `model`: `claude-opus-5` or `claude-sonnet-5`
@@ -74,15 +77,16 @@ reason less thoroughly.
     rather than assume it.
 - **Both models can take the same request.** Sonnet 5 supports document citations, prompt
   caching, adaptive thinking with summarized display, the full five-level effort range, a
-  1M context window and 128K output (per the SDK skill's model reference). Not yet proven
-  against this request shape; item 1 checks every combination.
+  1M context window and 128K output (per the SDK skill's model reference). **Proven at
+  item 1:** all ten combinations accept the request shape, including `max_tokens` of 64,000
+  at `xhigh` and 128,000 at `max`.
 - **Each combination of model and effort level has its own corpus cache.** Caches are scoped
   to the model. A change to `thinking` or `effort` invalidates the messages cache, and this
   app's corpus lives in the messages (the first user message), not in `system`. So there
   are ten independent 1-hour corpus entries, one per combination, and the first question
-  on each is a cold write. Item 1 confirms this on small fixtures, including that the
-  entries coexist rather than replace one another, because the selector design rests on
-  it.
+  on each is a cold write. **Confirmed at item 1** on small fixtures: a level change and a
+  model change each write a new entry, and the entries coexist rather than replace one
+  another.
 - **The corpus is 199,749 tokens on both models.** Measured with the free `count_tokens`
   call on 2026-09-13, with the system prompt included; both models use the same tokenizer.
   The corpus costs in the **Cost Reference** are therefore exact arithmetic on a measured
@@ -121,16 +125,12 @@ reason less thoroughly.
     options.
   - Models: `Model.ClaudeOpus5` and `Model.ClaudeSonnet5`.
 
-  **Not yet confirmed:**
-  - whether the aggregator folds `citations_delta` and `signature_delta` into the final
-    message
-  - whether `CollectAsync` passes events through while it aggregates (one pass over the
-    stream)
-  - whether the `Effort` enum has an `xhigh` member. The SDK skill's C# reference lists
-    only Low, Medium, High and Max. However, the 12.47.0 assembly contains an `Xhigh`
-    identifier and the `"xhigh"` wire string, so the member very likely exists.
-
-  Item 1 settles all three, and pins the serialized value either way.
+  **Settled at item 1**, offline against a canned stream and then live:
+  - The aggregator folds `citations_delta` and `signature_delta` into the final message.
+  - `CollectAsync` passes every event except `ping` through as it aggregates, so one pass
+    over the stream serves both the UI and the final message.
+  - The `Effort` enum has an `Xhigh` member, which serializes to `"xhigh"`. A test pins all
+    five wire strings.
 - **AngleSharp builds the same tree lxml does for these six files.** Not verified. lxml uses
   libxml2's HTML parser, which does not follow the HTML5 parsing algorithm; AngleSharp
   does. Item 2 checks this with a golden-file comparison.
@@ -354,11 +354,16 @@ ones.
     through `high`, 30 minutes for `xhigh`, and 60 minutes for `max`.
   - That leaves roughly two to three times the measured-rate duration of an answer at each
     level's output limit. Stop is the user's control for anything shorter.
+  - **Corrected at item 1:** the SDK's `Timeout` does *not* cover a streamed body, whatever
+    its documentation says. It bounds only the wait for the response headers, and a body
+    that stalls after the headers is never interrupted. The answer service (item 4)
+    therefore enforces each level's timeout itself.
 - **Retries.** `MaxRetries` stays at 2 for failures before the response starts: 429, 5xx
   and connection errors.
   - Item 1, check 6 verifies that a stream failing *after* the response has started is not
     retried. If it is, the streaming views set `MaxRetries = 0`, because a retried answer
-    pays its corpus read or write, and its output, a second time.
+    pays its corpus read or write, and its output, a second time. **Verified at item 1:** it
+    is not retried (one request, then a raw `IOException`), so `MaxRetries` stays at 2.
   - Every retry is logged through a handler in `ClientOptions.Handlers`.
   - Do not pass a custom `HttpClient`: it brings its own 100-second timeout, which
     conflicts with the SDK's timeout.
@@ -604,6 +609,25 @@ AnswerService.StreamAsync(AnswerSettings settings,
   top-level 5-minute tail breakpoint is on every request. The system prompt is sent as a
   plain string, as the prototype sends it. Thinking stays adaptive with summarized display
   at every level; there is no thinking-off option (see **What We're NOT Doing**).
+  - **The tail breakpoint (added at item 1).** On a follow-up, the previous question also
+    carries an explicit 5-minute breakpoint. `MessageRequestBuilder` adds it to a copy of
+    the history on every request, so the marker moves forward each turn. Three of the four
+    allowed breakpoints are then in use.
+    - **Why:** the previous request's top-level breakpoint wrote its entry ending at that
+      question. But a breakpoint looks back at most 20 block positions for an earlier entry,
+      and a cited answer spans more: 26 blocks in the live check. Without the marker, every
+      follow-up rewrites the whole history at the 5-minute rate.
+    - **Measured:** turn 2 read the corpus plus turn 1's tail (3,250 tokens), and turn 3
+      read everything turn 2 had written (5,169). (User decision, 2026-09-13.)
+  - Follow-up questions are sent as a one-block list, not a bare string, so a question
+    serializes the same way with or without the marker.
+- **Timeout.** Each request gets a `CancellationTokenSource` linked to the caller's token,
+  with `CancelAfter` set to the level's timeout. The SDK's own `Timeout` bounds only the wait
+  for headers (item 1).
+  - A timeout surfaces as a `TaskCanceledException`, just like Stop. The service tells them
+    apart by checking which token was cancelled.
+- **No thinking block is assumed.** For short questions, adaptive thinking often produces
+  none: in item 1, at every level on Opus 5, and at every level but `max` on Sonnet 5.
 - **Stop reasons.** Every stop reason is checked:
   - `end_turn`: complete; no warning
   - `max_tokens`: TRUNCATED. The message names this level's output limit (thinking counts
@@ -632,6 +656,11 @@ AnswerService.StreamAsync(AnswerSettings settings,
   - other API status errors
   - connection errors
   - timeouts
+
+  Item 1 found three failures that do not surface as an `Anthropic.Exceptions` API type:
+  - a body that breaks after the response started: a raw `IOException`
+  - a body that ends without `message_stop`: `AnthropicInvalidDataException`
+  - a timeout: a `TaskCanceledException`, with the caller's token not cancelled
 
   Log each with the full exception object and show the user a short message.
 **Depends on:** Items 1 and 3.
@@ -1292,6 +1321,103 @@ outcomes are below.
   4. **Low:** the environment test set no `ANTHROPIC_*` variable, so it proved nothing
      about overrides. It was replaced by the offline test that found the bearer-token leak
      above.
+
+**2026-09-13, item 1.** Done on branch `item-1-request-shape-spike`. **The gate passes:**
+the SDK serializes the request, streams it in one pass, and carries citations and signatures
+through to the final message and back. No fallback is needed: neither the custom
+accumulator nor raw HTTP.
+- **Tests:** 132 offline tests pass. The 4 live tests run only with `DOCQA_LIVE=1`:
+  - The credentials, round-trip and Stop tests pass.
+  - The combination sweep's one failure was a test artifact. It was fixed but not re-run;
+    see the test-only note.
+- **Cost:** about $0.55 of billed calls in all, against the $1 estimate.
+- **Delivered for later items:**
+  - `CodePointIndex`, for item 5
+  - `ReplayConverter`, for item 6
+  - `MessageRequestBuilder` and `EffortLevel.ToSdkEffort`, for item 4
+
+**Results by check.**
+1. **Serialization and credentials.**
+   - **Offline:** a test pins every field of the prototype's shape, and all five effort
+     strings, against the captured request body.
+   - **Live:** `count_tokens` succeeded with every `ANTHROPIC_*` variable set to junk. The
+     request went to `api.anthropic.com` with the key file's key, and with no
+     `Authorization`, workspace or organization header.
+2. **One pass.** `MessageContentAggregator.CollectAsync` forwards every event except `ping`
+   as it arrives. `Message()` then returns the final message, with citations and signatures
+   intact. There was exactly one HTTP request per answer, offline and live.
+3. **Offsets.** Live, every citation sliced exactly as code points: 13 in one run and 12 in
+   the other. Every one of them started after the fixture's non-BMP character, so UTF-16
+   offsets are ruled out.
+4. **Round trip.** The converted reply is accepted as turn 2. The tail finding below led to
+   an addition to the request shape.
+5. **Caching.** A different first question read the full 1-hour prefix (3,214–3,218 tokens;
+   the count differs by run id).
+6. **Usage, stop details, Stop and retries.**
+   - The 1-hour write is readable at `message_start`, and `StopReason` and `StopDetails` at
+     the end.
+   - Cancelling ended the live stream 2 ms after Stop, with a `TaskCanceledException`.
+   - Offline, a body that breaks is not retried.
+7. **Every combination.**
+   - All ten were accepted. Each wrote its own 1-hour entry and read it back exactly.
+   - A level change (Opus 5 `low`) and a model change (Sonnet 5 `high`) each wrote a new
+     entry, and Opus 5 `high` still read its own after each.
+   - No combination is excluded, and `ExcludedCombinations` stays empty.
+
+**Findings that affect later items.**
+- **Follow-ups need a breakpoint on the previous question.**
+  - **The cause:** the reply in the live check had 26 content blocks, more than the 20
+    positions a breakpoint looks back for an earlier entry. With the plan's original shape,
+    turn 2 read only the corpus (3,218 tokens), and the whole history would have been
+    rewritten on every follow-up.
+  - **The fix:** an explicit 5-minute marker on the previous question. With it, turn 2 read
+    3,250 tokens and turn 3 read 5,169, both exactly as expected (item 4).
+  - **Why it matters:** without the fix, each follow-up would cost about
+    $0.035 × (turn − 2) more on Opus 5 than the Cost Reference assumes. The Cost
+    Reference's follow-up figures assume the fixed behavior.
+  - User decision, 2026-09-13.
+- **The SDK's `Timeout` does not cover a streamed body.**
+  - With a 500 ms timeout, a body that stalled after the headers ran for the full
+    3 seconds, then ended with an `AnthropicInvalidDataException`.
+  - The timeout does bound the wait for headers: it gives up after one attempt, with a
+    `TaskCanceledException`. The SDK's docs say timeouts are retried.
+  - Item 4 enforces each level's timeout with its own token. Item 0's per-level views
+    remain, for the header wait.
+- **Some failures surface outside `Anthropic.Exceptions`:** a raw `IOException`, an
+  `AnthropicInvalidDataException`, and a `TaskCanceledException` for a timeout. Tests pin
+  all three (item 4, Errors).
+- **Adaptive thinking often produces no thinking block** for a short question. The replay
+  converter handles a reply without one.
+- **SDK surface details for items 4–6:**
+  - The parameter types are records with `init`-only and `required` members, so a changed
+    block is made with `with`.
+  - `Message.StopReason`, `Usage.CacheCreation` and `TextBlock.Citations` are nullable.
+  - The SDK does not recognize a `char_location` citation whose `document_title` is null,
+    which the API allows. `ReplayConverter` rebuilds such a citation from its JSON instead
+    of refusing the reply.
+
+**Test-only note.** The combination sweep's second coexistence re-read reused the first
+re-read's question, so it also read that request's tail: 3,239 tokens, with nothing written.
+It now uses a distinct question. It was not re-run, since the result already showed the full
+prefix read.
+
+**Adversarial review.** Two read-only reviews by a second model (Copilot CLI,
+`gpt-5.6-luna`). Neither found a Critical or High issue.
+- **Review 1, of the whole item.** It ran before the tail breakpoint was added.
+  1. **Medium, fixed:** live spend had no upper bound, because `xhigh` and `max` send
+     `max_tokens` of 64,000 and 128,000. Those values stay, since check 7 requires them.
+     Instead, a live run now refuses further billed calls after $3.00, and stops any one
+     request after 3 minutes, which bounds a runaway answer at about $0.45 on Opus 5. These
+     guards have not been exercised live.
+  2. **Low, fixed:** a citation with a null `document_title` was never tested. The new test
+     exposed a real defect: the SDK does not recognize such a citation, so the converter
+     refused a replayable reply. It now rebuilds the citation from its JSON, and refuses
+     only one missing its text or offsets.
+- **Review 2, of the tail breakpoint.**
+  1. **Medium, fixed:** a previous question sent as a bare string was silently converted to
+     a block list, which could change the bytes of a prefix already cached. It is now
+     refused instead. The app's own builders always produce block lists.
+- **Rejected:** none.
 
 ## Plan Review Log
 

@@ -26,18 +26,50 @@ internal sealed class StubHandler(Func<int, HttpResponseMessage> respond) : Dele
     public static HttpResponseMessage Json(string json, HttpStatusCode status = HttpStatusCode.OK) =>
         new(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        CapturedRequest captured = await CapturedRequest.FromAsync(request, cancellationToken);
         int number;
         lock (_requests)
         {
-            _requests.Add(CapturedRequest.From(request));
+            _requests.Add(captured);
             number = _requests.Count;
         }
 
         HttpResponseMessage response = respond(number);
         response.RequestMessage = request;
-        return Task.FromResult(response);
+        return response;
+    }
+}
+
+/// <summary>
+/// Records each request and passes it on to the network. For live tests, which need to see what the
+/// SDK actually sent.
+/// </summary>
+internal sealed class CaptureHandler : DelegatingHandler
+{
+    private readonly List<CapturedRequest> _requests = [];
+
+    public IReadOnlyList<CapturedRequest> Requests
+    {
+        get
+        {
+            lock (_requests)
+            {
+                return [.. _requests];
+            }
+        }
+    }
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        CapturedRequest captured = await CapturedRequest.FromAsync(request, cancellationToken);
+        lock (_requests)
+        {
+            _requests.Add(captured);
+        }
+
+        return await base.SendAsync(request, cancellationToken);
     }
 }
 
@@ -47,12 +79,14 @@ internal sealed record CapturedRequest(
     Uri? Uri,
     string? ApiKey,
     bool HasAuthorization,
-    IReadOnlyList<(string Name, string Value)> Headers)
+    IReadOnlyList<(string Name, string Value)> Headers,
+    string? Body)
 {
-    public static CapturedRequest From(HttpRequestMessage request) => new(
+    public static async Task<CapturedRequest> FromAsync(HttpRequestMessage request, CancellationToken cancellationToken) => new(
         request.Method,
         request.RequestUri,
         request.Headers.TryGetValues("x-api-key", out IEnumerable<string>? keys) ? keys.Single() : null,
         request.Headers.Contains("Authorization"),
-        [.. request.Headers.SelectMany(header => header.Value.Select(value => (header.Key, value)))]);
+        [.. request.Headers.SelectMany(header => header.Value.Select(value => (header.Key, value)))],
+        request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken));
 }
