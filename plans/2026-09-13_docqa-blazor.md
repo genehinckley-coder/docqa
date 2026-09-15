@@ -1882,6 +1882,70 @@ accepted, and two were rejected.
 5. **Low, fixed:** the marker test used a fixed address, so it would pass even if the page dropped `?c={id}` from the
    links. A page-level test now checks that a marker's link keeps it.
 
+**2026-09-15, item 9.** Done on branch `item-9-documents-screen`. The Documents screen shows each document's whole
+extracted text, with the span behind a citation highlighted in the paragraphs it covers and scrolled to. The nav rail
+now carries the open conversation between the three screens.
+- **Tests:** 513 offline Core tests (26 of them new) and 239 Web tests (41 of them new) pass. The 5 live tests were not
+  run.
+  - **Mutation checks, four guards:** each was removed in turn.
+    - `DocumentParagraph.ShouldRender`, the sections keeping the body heading, and CITED counting only citations
+      checked against the corpus on screen each failed a test at once.
+    - **The fourth exposed a gap:** dropping the code-point conversion of a span's *start* still passed, because a
+      start before its paragraph is clamped to the paragraph's edge, which hid the error. A new test puts both ends of
+      a span inside one paragraph, after a character outside the BMP; the check then failed as it should.
+- **Smoke run, offline:** started with its key path pointing at a missing file, so no request was sent. `/`,
+  `/documents`, `/settings`, a Documents address carrying every query parameter, and `Documents.razor.js` all returned
+  200; the screen showed CORPUS NOT LOADED with Retry, and the rail marked Documents as current.
+- **Smoke run, live, and free (user decision, 2026-09-15):** started with the real key, so the corpus loaded through
+  eight `count_tokens` calls.
+  - **Part 175 renders in about 6–8 ms,** as 325,604 bytes of prerendered HTML: 1,108 paragraphs, 48 section tags and
+    the six document rows. The other five documents are 22,550 to 153,418 bytes.
+  - Its counts match item 3's live figures: 246,682 characters and about 102,061 tokens.
+  - **No further optimization was done,** as the plan asks: the cost is a few milliseconds.
+- **Cost:** none. Only `count_tokens`, which is free.
+- **Decisions (user, 2026-09-15):**
+  - **The rail's three links carry `?c=`,** so Documents marks the conversation's citations and Conversation reopens it.
+    `NavLinkMatch.All` ignores the query string in .NET 10, which a test pins.
+  - **The click-through starts at the source rows.** A `[n]` marker still jumps to its source row, as item 8 decided,
+    and the row carries a "Show in document" link.
+  - **The section tags sit in a `<details>`,** open, with a capped height of their own. Parts 175 and 176 have 48 and 61
+    sections, which as a plain wrapping row would fill the screen above the text.
+- **Delivered for later items:** `CorpusDocument.FindHighlight` and `Sections`, `ParagraphSpan`, `SectionHeading`, and
+  `SourceStatus`, which holds the source label, badge tone and span lookup that item 8 had inside `AnswerView`.
+- **Finding: every document lists its sections twice.** A table of contents repeats each heading before the body does,
+  and in Part 176 one contents entry is worded differently from its heading.
+  - **What the code does:** headings are keyed by section number, and each section keeps its *last* heading, which is
+    the body's. So a tag scrolls to the section, not to its contents entry. Part 176's 176.590 resolves to paragraph
+    412, not 52, which a test pins against the golden text.
+- **Additions beyond the plan's text:**
+  - **A span that is cited but does not match is still highlighted,** with its status badge and the line "The highlight
+    shows the text at the cited span, which is not the quote above." Seeing what the span really holds is the point of
+    reading it in context.
+  - **The screen states what it cannot show:** a source that is not in the conversation, a half link (an answer with no
+    source number), and a span with nothing to highlight each get their own notice.
+  - **A source shown in the snapshot its answer was checked against,** with a CORPUS RELOADED notice when a reload has
+    replaced it. CITED likewise counts only citations checked against the corpus on screen.
+  - **Scrolling moves focus to the paragraph** (`scrollIntoView`, then `focus`), so a keyboard or screen-reader user
+    continues from the passage. The paragraph is made focusable by the JS module, not by the markup, so it stays out of
+    the Tab order.
+  - **Choosing a document drops the opened source,** as the design does, and keeps the conversation in the address.
+- **Deviations from the design:**
+  - The design scrolls the text inside a box with its own maximum height. Here the document pane scrolls as a whole, so
+    there is one scroll bar and a section or citation scrolls into view in one place.
+  - The design's "excerpt of the full section" is the whole extracted text, as this plan requires.
+- **Known limits:**
+  - `scrollIntoView` and focus run in the browser. bUnit checks only that the right element id is asked for, so the
+    scroll itself stays on item 11's manual list.
+  - A paragraph is a `<p>` per paragraph, with no `Virtualize`, by the plan's decision. 325,604 bytes reach the browser
+    for Part 175, twice: once prerendered and once over the circuit.
+
+**Adversarial review.** One read-only review by a second model (Copilot CLI, `gpt-5.6-luna`). It reported one Medium
+finding, and no Critical, High or Low one. It was fixed.
+1. **Medium, fixed:** a source that the store had not published when the screen opened was never scrolled to. The
+   reveal was marked as handled even when nothing was found, so the highlight could appear later without the screen
+   moving to it. The reveal is now left pending until the source resolves, and a test opens the screen at an answer
+   that arrives afterwards, then checks that it is revealed once and only once.
+
 ## Plan Review Log
 
 **2026-09-13, subagent review of the first draft.** No critical findings; four high, seven

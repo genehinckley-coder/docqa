@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using DocQa.Core.Answering;
 using DocQa.Core.Conversations;
 using DocQa.Core.Quotes;
 using DocQa.Web.Components.Conversations;
@@ -190,10 +191,43 @@ public sealed class AnswerViewTests : IDisposable
         Assert.Contains("&lt;script&gt;", cut.Markup, StringComparison.Ordinal);
     }
 
-    private IRenderedComponent<AnswerView> Render(AnswerRecord record, bool disclaimer = false) =>
+    // --- The click-through to the document (plan item 9) ---------------------------------------------
+
+    [Fact]
+    public void EachSource_LinksToItsSpanOnTheDocumentsScreen()
+    {
+        Guid conversation = Guid.NewGuid();
+
+        IRenderedComponent<AnswerView> cut = Render(TestData.Completed(), conversation: conversation);
+
+        IElement link = cut.Find(".qa__source-link");
+        Assert.Equal($"documents?c={conversation}&answer=0&source=1", link.GetAttribute("href"));
+        Assert.Equal("Show in document, source 1", link.TextContent);
+    }
+
+    [Fact]
+    public void WithoutAConversation_ASourceHasNoLinkToTheDocument() =>
+        Assert.Empty(Render(TestData.Completed()).FindAll(".qa__source-link"));
+
+    [Fact]
+    public void ASourceWithNothingToShow_HasNoLinkToTheDocument()
+    {
+        var outOfRange = new QuoteCheck(
+            new AnswerCitation(0, 500, 600, TestData.CitedText, TestData.Label), "char_location", TestData.CitedText, MatchStatus.OutOfRange, "Outside the text.");
+        var unreadable = new QuoteCheck(null, "page_location", "quoted", MatchStatus.NotCheckable, "Not a char_location citation.");
+
+        IRenderedComponent<AnswerView> cut = Render(
+            TestData.Completed(quotes: TestData.Report(outOfRange, unreadable)), conversation: Guid.NewGuid());
+
+        Assert.Equal(2, cut.FindAll(".qa__source").Count);
+        Assert.Empty(cut.FindAll(".qa__source-link"));
+    }
+
+    private IRenderedComponent<AnswerView> Render(AnswerRecord record, bool disclaimer = false, Guid? conversation = null) =>
         _context.Render<AnswerView>(p => p
             .Add(x => x.Record, record)
             .Add(x => x.Index, 0)
             .Add(x => x.ShowDisclaimer, disclaimer)
-            .Add(x => x.BaseUri, BaseUri));
+            .Add(x => x.BaseUri, BaseUri)
+            .Add(x => x.ConversationId, conversation));
 }
