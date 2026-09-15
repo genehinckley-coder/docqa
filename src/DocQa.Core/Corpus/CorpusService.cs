@@ -23,7 +23,7 @@ namespace DocQa.Core.Corpus;
 /// succeed. Until then, and after a failed reload, the current corpus stays in use.
 /// </para>
 /// </remarks>
-public sealed class CorpusService : IDisposable
+public sealed class CorpusService : ICorpusSource, IDisposable
 {
     private readonly CorpusLoader _loader;
     private readonly DocQaOptions _options;

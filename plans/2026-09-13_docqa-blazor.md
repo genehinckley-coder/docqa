@@ -1645,6 +1645,47 @@ with no Critical or High finding, and it was fixed.
    - **Why it matters little in practice:** it needs a lone surrogate in `cited_text`, and it affects only the
      wording of a mismatch, never a status.
 
+**2026-09-14, item 6.** Done on branch `item-6-conversation-state`. `ConversationStore` holds every conversation in memory
+for the app's lifetime, runs each turn on its own task, and publishes immutable snapshots, including the answer in progress.
+It commits a turn only after `Completed`, and only if the reply can be replayed.
+- **Tests:** 486 offline Core tests (85 of them new) and 19 Web tests pass. The 84 conversation tests also passed ten
+  repeated runs, since they exercise concurrency.
+  - No live test, as for items 4 and 5. The $2 sump question stays in item 11.
+- **Cost:** none. Nothing billed was called.
+- **Delivered for later items:**
+  - `IConversationStore` and `ConversationStore`, with `ConversationSnapshot`, `AnswerRecord`, `InProgressAnswer`,
+    `ConversationCost` and `AskResult`, for items 8 and 10
+  - `CacheWarmthTracker` and `CacheBaselines`, with `CacheReport`, for items 8 and 10
+  - `CostEstimator` and `CostEstimate`: the preview's cold, warm and worst-case figures and their basis, for item 8
+  - `ICorpusSource`, implemented by `CorpusService`, so the UI's tests can substitute a corpus
+- **Decisions (user, 2026-09-14):**
+  - `CostEstimator` is built here rather than in item 8. The label of a turn stopped before its usage arrived ("up to
+    about $X") needs its figures, and item 11 lists its tests under Core. Item 8 only words the preview.
+  - `Microsoft.Extensions.TimeProvider.Testing` 10.10.0 is added to the Core tests, for `FakeTimeProvider`.
+- **Additions beyond the plan's text:**
+  - **An empty conversation has no corpus snapshot until a turn is committed.** Until then each question uses the corpus
+    current when it is asked, so a reload between a failed first turn and its retry is not lost.
+  - **A missing key file costs nothing.** No request was sent, so the turn records $0 rather than "cost unknown".
+  - **Warnings are typed** (`TurnWarning` and its kind), so item 8 chooses a badge without parsing text.
+  - **A snapshot is built once per change, not once per read.** Change events carry only the conversation id, so a
+    streamed fragment does not copy the conversation once per tab.
+  - **Stop uses `CancelAsync`.** It marks the token cancelled at once and runs the stream's cancellation callbacks on the
+    thread pool, so Stop returns even if closing the stream is slow. A test holds a stream that ignores its token.
+  - **A stream that ends without a final event fails the turn** as `Unexpected`.
+  - **A last-resort guard releases the conversation** if recording an outcome itself throws, so a conversation can never
+    be stuck in flight.
+- **Finding:** item 4's canned answer writes the corpus on every response. Through the real `AnswerService`, its follow-up
+  is therefore reported as CACHE MISS (expired), since the tracker predicted a read. That is the check working on the
+  fixture, and a test pins it.
+
+**Adversarial review.** One read-only review by a second model (Copilot CLI, `gpt-5.6-luna`). It found no Critical, High or
+Medium issue.
+1. **Low, fixed:** no test covered a turn that fails after its usage arrived. A test now checks that turn's input cost,
+   its unreported output, the cache warmth it leaves, and that the next question is valid.
+- It reported as checked and correct: the lock scope and event raising, the ordering of Stop and commit, token-source
+  cleanup, message alternation, the replay rule, the returned question, the settings lock, the baseline's tolerance and
+  classification, the tracker's TTL, margin and keys, the cost of a credentials failure, and the estimator's formulas.
+
 ## Plan Review Log
 
 **2026-09-13, subagent review of the first draft.** No critical findings; four high, seven
