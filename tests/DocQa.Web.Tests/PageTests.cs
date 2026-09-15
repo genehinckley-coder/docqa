@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.Components;
 namespace DocQa.Web.Tests;
 
 /// <summary>
-/// The three screens exist at the routes the nav rail links to. Items 9 and 10 fill in the last two; the
-/// Conversation screen's own tests are in <see cref="ConversationPageTests"/>.
+/// The three screens exist at the routes the nav rail links to. Item 10 fills in Corpus settings; the Conversation and
+/// Documents screens have their own tests in <see cref="ConversationPageTests"/> and <see cref="DocumentsPageTests"/>.
 /// </summary>
 public sealed class PageTests : IDisposable
 {
@@ -24,11 +24,8 @@ public sealed class PageTests : IDisposable
     }
 
     [Fact]
-    public void EachScreen_NamesItself()
-    {
-        Assert.Equal("Documents", _context.Render<Documents>().Find("h1").TextContent);
+    public void TheScreenNotYetBuilt_NamesItself() =>
         Assert.Equal("Corpus settings", _context.Render<CorpusSettings>().Find("h1").TextContent);
-    }
 
     private static string? Route<TPage>() => typeof(TPage).GetCustomAttribute<RouteAttribute>()?.Template;
 }

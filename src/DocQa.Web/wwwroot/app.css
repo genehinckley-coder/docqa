@@ -251,6 +251,16 @@ button.d1-card {
     color: var(--status-danger);
 }
 
+/* The click-through to the cited span on the Documents screen. */
+.qa__source-link {
+    align-self: flex-start;
+    margin-top: 2px;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-accent);
+}
+
 .qa__quality {
     margin: 10px 0 0;
     font-family: var(--font-ui);
@@ -314,7 +324,7 @@ button.d1-card {
     color: var(--text-subtle);
 }
 
-/* The screens not yet built (plan items 9 and 10). */
+/* The screen not yet built (plan item 10). */
 .page-placeholder {
     padding: var(--space-6) var(--space-7);
 }

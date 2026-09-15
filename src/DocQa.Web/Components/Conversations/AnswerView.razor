@@ -51,14 +51,18 @@
                     <li id="@SourceId(number)" class="qa__source" tabindex="-1">
                         <span class="qa__source-number" aria-hidden="true">[@number]</span>
                         <span class="qa__source-body">
-                            <span class="qa__source-label"><span class="visually-hidden">Source @number: </span>@SourceLabel(check)</span>
+                            <span class="qa__source-label"><span class="visually-hidden">Source @number: </span>@SourceStatus.Label(check, Record.Corpus)</span>
                             <span class="qa__source-quote">“@check.CitedText”</span>
                             @if (check.Detail is { } detail)
                             {
                                 <span class="qa__source-detail">@detail</span>
                             }
+                            @if (DocumentHref(number, check) is { } documentHref)
+                            {
+                                <a class="qa__source-link" href="@documentHref">Show in document<span class="visually-hidden">, source @number</span></a>
+                            }
                         </span>
-                        <Badge Tone="StatusTone(check.Status)">@check.Status.ToDisplayName()</Badge>
+                        <Badge Tone="SourceStatus.Tone(check.Status)">@check.Status.ToDisplayName()</Badge>
                     </li>
                 }
             </ol>
@@ -105,6 +109,7 @@
     private AnswerRecord? _renderedRecord;
     private bool _renderedDisclaimer;
     private string? _renderedBaseUri;
+    private Guid? _renderedConversationId;
     private bool _changed = true;
 
     /// <summary>The question and what came of it.</summary>
@@ -123,6 +128,13 @@
     [Parameter]
     public string BaseUri { get; set; } = "";
 
+    /// <summary>
+    /// The conversation the answer belongs to, which a source's link to the Documents screen names; without it, sources
+    /// have no such link.
+    /// </summary>
+    [Parameter]
+    public Guid? ConversationId { get; set; }
+
     private string QuestionId => $"answer-{Index}-question";
 
     private string SourcesId => $"answer-{Index}-sources";
@@ -135,30 +147,14 @@
     private string? SourceHref(int number) => CheckFor(number) is null ? null : $"{BaseUri}#{SourceId(number)}";
 
     private string MarkerLabel(int number) =>
-        CheckFor(number) is { } check ? $"Source {number}: {SourceLabel(check)}" : $"Source {number}";
+        CheckFor(number) is { } check ? $"Source {number}: {SourceStatus.Label(check, Record.Corpus)}" : $"Source {number}";
 
-    // The label and character range, as the prototype shows them. No section number: spans can start mid-sentence,
-    // even in the previous section's source note, so "the nearest Section heading" could mislabel a legal citation.
-    private string SourceLabel(QuoteCheck check)
-    {
-        if (check.Citation is not { } citation)
-        {
-            return $"Not a readable citation ({check.CitationType})";
-        }
-
-        IReadOnlyList<CorpusDocument> documents = Record.Corpus.Documents;
-        string document = citation.DocumentIndex >= 0 && citation.DocumentIndex < documents.Count
-            ? documents[(int)citation.DocumentIndex].Label
-            : citation.DocumentTitle ?? $"Document {citation.DocumentIndex}";
-        return $"{document} · characters {Formatting.Number(citation.StartCharIndex)}–{Formatting.Number(citation.EndCharIndex)}";
-    }
-
-    private static BadgeTone StatusTone(MatchStatus status) => status switch
-    {
-        MatchStatus.Matched => BadgeTone.Success,
-        MatchStatus.Mismatch => BadgeTone.Danger,
-        _ => BadgeTone.Warning,
-    };
+    // Only a span with text to highlight links to the Documents screen; an out-of-range or unreadable one has nothing
+    // to show there. Relative, so it resolves against the app's base address.
+    private string? DocumentHref(int number, QuoteCheck check) =>
+        ConversationId is { } id && SourceStatus.Locate(check, Record.Corpus) is { Spans.Count: > 0 }
+            ? $"documents?c={id}&answer={Index}&source={number}"
+            : null;
 
     private static string QualityLine(QuoteReport quotes)
     {
@@ -258,10 +254,14 @@
     protected override void OnParametersSet()
     {
         // A finished record never changes, so the page's frequent renders while another answer streams skip it.
-        _changed = !ReferenceEquals(Record, _renderedRecord) || ShowDisclaimer != _renderedDisclaimer || BaseUri != _renderedBaseUri;
+        _changed = !ReferenceEquals(Record, _renderedRecord)
+            || ShowDisclaimer != _renderedDisclaimer
+            || BaseUri != _renderedBaseUri
+            || ConversationId != _renderedConversationId;
         _renderedRecord = Record;
         _renderedDisclaimer = ShowDisclaimer;
         _renderedBaseUri = BaseUri;
+        _renderedConversationId = ConversationId;
     }
 
     /// <inheritdoc/>

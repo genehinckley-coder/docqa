@@ -15,6 +15,9 @@ internal sealed class FakeCorpusSource(CorpusState state) : ICorpusSource
     /// <summary>How many times <see cref="ReloadAsync"/> was called.</summary>
     public int Reloads { get; private set; }
 
+    /// <summary>How many handlers are subscribed to <see cref="StateChanged"/>.</summary>
+    public int SubscriberCount => StateChanged?.GetInvocationList().Length ?? 0;
+
     public static CorpusState.Ready Ready(CorpusSnapshot corpus) =>
         new(corpus, new FingerprintCheck(FingerprintStatus.FirstRun, null, []), "", DateTimeOffset.UnixEpoch);
 
