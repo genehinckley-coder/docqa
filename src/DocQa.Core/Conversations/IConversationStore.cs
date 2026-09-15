@@ -59,7 +59,9 @@ public interface IConversationStore
     /// <param name="question">The question.</param>
     /// <returns>
     /// Whether it was sent. It is refused when it is empty, the conversation does not exist or already has an
-    /// answer in flight, or an empty conversation has no corpus to ask about.
+    /// answer in flight, an empty conversation has no corpus to ask about, or a reload has replaced the corpus
+    /// the conversation's committed turns were built from; that conversation stays readable, and a new one asks
+    /// about the current corpus.
     /// </returns>
     AskResult Ask(Guid id, string question);
 

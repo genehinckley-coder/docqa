@@ -578,6 +578,7 @@ surprise.
   start a new conversation. The prototype cleared its single conversation on reload; with
   many conversations in memory, clearing them silently would lose work, and continuing
   them would quote-check against the wrong text.
+  **Enforced at item 8,** in `ConversationStore.Ask` and in the Conversation screen.
 - **Loading.** A singleton `CorpusService` loads the corpus in the background at startup and
   exposes its state: `Loading`, `Ready(corpus)`, or `Failed(reason)`. The UI renders that
   state, with Ask disabled and the reason shown, instead of the app failing to start. For
@@ -977,6 +978,9 @@ and can be used unchanged.
   a "Reasoning summary" disclosure once the answer completes. This matters more at
   `xhigh` and `max`, where the wait is longer.
 
+**Resolved at item 8:** both proposals were accepted as written (user decision, 2026-09-14). See
+the item 8 entry in the **Implementation Log**.
+
 ### 9. Documents screen
 **Why:** A citation is only useful if it can be read in context. The design's click-through
 from a citation to a highlighted span is that feature.
@@ -1133,6 +1137,8 @@ line count.
   - a new conversation on Sonnet 5 at `high`, where the preview says cold and the cost is
     about $0.85
   - Enter and Shift+Enter behavior, including with an IME if one is available
+  - keyboard focus stays on the Ask/Stop button through Ask, Stop, Stopping… and Ask again
+    (bUnit sees component instances, not the browser's focus; added at item 8)
   - refreshing the tab mid-answer shows the answer in progress and Stop, and the answer
     then completes
   - Stop mid-answer: the partial answer is kept and labeled, the input-side spend is
@@ -1774,6 +1780,107 @@ three Medium findings, and no Critical or Low ones.
    - **What it led to:** the gaps it named that were real are now tested, a change of conversation and rapid clicks.
 5. **Medium, fixed:** `LiveRegion` was built but announced nothing. The Ask/Stop button now holds the one region and
    announces each answer's end.
+
+**2026-09-14, item 8.** Done on branch `item-8-conversation-screen`. The Conversation screen runs on the store. It
+has the conversation list, the model and level selects with the cost preview, and the cache badge. It also has the
+history, the streaming answer, and the input, with Enter to send, beside the Ask/Stop button.
+- **Tests:** 487 offline Core tests (one more, net) and 198 Web tests (77 of them new) pass. The 5 live tests were not run.
+- **Smoke run:** the app was started with its key path pointing at a missing file, so no request was sent.
+  - Run in Development, as its launch profile runs it, `/` returned 200.
+  - The list, the header, the preview and the input were all prerendered.
+  - A second visit reused the one conversation and showed CORPUS NOT LOADED.
+  - `QuestionInput.razor.js` was served at its fingerprinted path and at the path the import map maps.
+- **Cost:** none. Nothing billed was called.
+- **Decisions (user, 2026-09-14):**
+  - **Sources show the document label and character range, and no section number.** This settles the first open
+    question as proposed.
+  - **The thinking summary streams dimmed under "Assembling answer from documents".** Once the text starts it becomes a
+    "Reasoning summary so far" disclosure, and once the answer completes, a closed "Reasoning summary". This settles
+    the second open question as proposed.
+  - **A conversation whose corpus a reload replaced is read-only, enforced in the store and in the UI.** Item 3
+    specified this, but the store did not do it.
+    - **Store:** `ConversationStore.Ask` now refuses it with `CorpusReplacedRefusal`.
+    - **UI:** a CORPUS RELOADED notice offers a new conversation, and Ask is unavailable.
+    - **Tests:** item 6's test that asked a follow-up after such a reload now asserts the refusal. A new test checks
+      that a reload finding the same corpus changes nothing.
+  - **The open conversation is kept in the address, as `/?c={id}`.** A refresh reopens it, and two tabs can show
+    different conversations. Without one, the newest opens, and on first run one is created.
+    - In .NET 10, `NavLinkMatch.All` ignores the query string (confirmed in Microsoft's docs), so the rail's link stays
+      marked.
+- **Delivered for later items:**
+  - `ICorpusSource.ReloadAsync`, for item 10's Reload button. Here the Retry button of a failed load uses it.
+  - Each source row has the id `answer-{i}-source-{n}`, which item 9's click-through can target.
+  - Test support for the Web tests of items 9 and 10:
+    - `TestData`: a small corpus, answer records, and the options bound from the app's own `appsettings.json`
+    - `FakeCorpusSource`
+    - a `FakeConversationStore` that also creates conversations, changes settings, asks and returns questions
+  - Core's internals are visible to `DocQa.Web.Tests`, which builds corpus snapshots.
+- **Additions beyond the plan's text:**
+  - **A suggestion fills the input; it does not ask.** The design asks at once, but a click that can spend $2 should be
+    deliberate. This is a deviation from the design.
+  - **Each `[n]` marker links to its source row on the same page.** Its `aria-label` names the source. Clicking through
+    to the document is item 9.
+  - **The cost preview:**
+    - **It refreshes itself when a "probably warm" prediction expires.** A timer fires at the time the preview names,
+      since nothing else changes then.
+    - **The worst case always assumes a cold write,** since warmth is only ever probable. The plan's warm example
+      gives the cold figure too.
+    - **Until item 12, "estimated" covers estimates and assumptions alike.** Item 10's pricing table gives each row's
+      basis.
+    - **Once a conversation has an answer, a cold preview prices "the next question"** rather than the first.
+  - **The returned question:**
+    - **Only a live circuit takes it.** A prerendered page is thrown away, and would take the question with it.
+    - **It fills only an empty input,** so a draft already being written is kept.
+  - **A second Enter asks nothing.** The guard checks the store rather than the last render, which may not have caught
+    up.
+  - **Rendering while an answer streams:**
+    - **The page:** a change that starts, stops or ends an answer, or brings its first text, renders at once. Other
+      changes wait for the 100 ms throttle.
+    - **The Ask/Stop button renders only when its label or announcement changes.** In item 7 it rendered on every
+      streamed fragment.
+    - **A finished answer skips re-rendering** (`ShouldRender`) while another streams.
+  - **Why Ask is unavailable is read through `aria-describedby`, and kept visually hidden.** The notices above the
+    history already show it on screen.
+  - **The cache badge follows the design's tones:** neutral before any question, accent for a cold write, success for a
+    read. It is danger for a miss or no caching, which the design does not show.
+  - **A warning badge shows its kind, and the text beside it drops the repeated "KIND:" prefix.**
+  - **Corpus state:**
+    - a failed load shows its reason and a Retry button
+    - a failed reload says the corpus loaded before stays in use
+- **Findings:**
+  - **Outside Development, the build output does not serve collocated JS.**
+    - **What happens:** started from the build output in Production, as `--no-launch-profile` does, every `.razor.js`
+      returns 500. That includes item 7's `ReconnectModal.razor.js`.
+    - **Why:** `StaticAssetDevelopmentRuntimeHandler` looks for the files under `wwwroot`.
+    - **In Development:** both are served, as the launch profile runs the app.
+    - **A Release publish, run in Production, serves them too.** Checked for the review, below.
+    - **What changed:** nothing, since deployment is out of scope.
+- **Known limits:**
+  - The history does not scroll itself to the streaming answer.
+  - Enter, Shift+Enter and IME composition run in the browser. bUnit cannot exercise them, so they stay on item 11's
+    manual list.
+
+**Adversarial review.** One read-only review by a second model (Copilot CLI, `gpt-5.6-luna`). It reported one High,
+one Medium and three Low findings, and no Critical one. One was fixed, one was fixed in documentation, one was partly
+accepted, and two were rejected.
+1. **High, rejected:** "the collocated JS module is not served in production, so Enter inserts a newline."
+   - **Why rejected:** it holds only for the build output started outside Development (see Findings).
+   - **What was checked:** a Release publish, run in Production, served `QuestionInput.razor.js` at both of its paths,
+     and item 7's `ReconnectModal.razor.js`, with no exception.
+   - Without the module, only Enter is lost; the Ask button still asks.
+2. **Medium, rejected:** "a turn in flight across a reload recreates the old corpus's cache baseline, which could
+   misclassify cache use if that corpus is loaded again."
+   - **Why rejected:** a baseline is keyed by fingerprint, model and level, and a fingerprint names exactly one corpus.
+     A recreated baseline for the old corpus is a correct measurement of that corpus's prefix, so it cannot
+     misclassify a later turn on it.
+   - The code is item 6's, and item 8 did not change it.
+3. **Low, fixed in documentation:** `RenderThrottle` can call its render callback once after `Dispose`, when the two
+   race. The class now states that contract. The page's callback already checks its own disposal.
+4. **Low, partly accepted:** "the focus test compares component instances, not the browser's focus."
+   - **Why the test stays:** item 7's review settled that bUnit cannot see the browser's focus.
+   - **What it led to:** focus retention on the Ask/Stop button is now on item 11's manual acceptance list.
+5. **Low, fixed:** the marker test used a fixed address, so it would pass even if the page dropped `?c={id}` from the
+   links. A page-level test now checks that a marker's link keeps it.
 
 ## Plan Review Log
 

@@ -204,25 +204,30 @@ public sealed class ConversationStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task ACommittedConversation_KeepsItsCorpusSnapshot_ThroughAReload_WhileANewOneUsesTheNewCorpus()
+    public async Task AfterAReloadChangesTheCorpus_ACommittedConversation_KeepsItsSnapshot_ButTakesNoQuestions()
     {
         Guid id = Store.Create().Id;
         await _harness.AnswerAsync(id, "First?", await Replies.TextAsync());
-        MessageParam firstMessage = Store.Get(id)!.Messages[0];
+        IReadOnlyList<MessageParam> messages = Store.Get(id)!.Messages;
+        Guid empty = Store.Create().Id;
         DocQa.Core.Corpus.Corpus reloaded = TestCorpus.Create("fingerprint-2");
         _harness.CorpusSource.Publish(FakeCorpusSource.Ready(reloaded));
 
-        Task followUp = _harness.AskAsync(id, "Second?");
-        ScriptedAnswer answer = await _harness.Answers.NextAsync();
-        Assert.Same(firstMessage, answer.Messages[0]);
-        answer.Answer(await Replies.TextAsync(write1h: 0, read: 2_080));
-        await StoreHarness.WaitAsync(followUp);
+        // Continuing would quote-check against text that is no longer current, and clearing it would lose work; so its
+        // answers stay readable against the snapshot they were given, and a question is refused (plan item 3).
+        AskResult refused = Store.Ask(id, "Second?");
+        Assert.False(refused.Accepted);
+        Assert.Equal(ConversationStore.CorpusReplacedRefusal, refused.Refusal);
+        Assert.Empty(_harness.Answers.Calls.Skip(1));
 
-        Assert.Same(_harness.Corpus, Store.Get(id)!.Corpus);
-        Assert.All(Store.Get(id)!.Answers, record => Assert.Same(_harness.Corpus, record.Corpus));
+        ConversationSnapshot after = Store.Get(id)!;
+        Assert.False(after.IsAnswering);
+        Assert.Same(messages, after.Messages);
+        Assert.Same(_harness.Corpus, after.Corpus);
+        Assert.All(after.Answers, record => Assert.Same(_harness.Corpus, record.Corpus));
 
-        Guid fresh = Store.Create().Id;
-        ConversationSnapshot other = await _harness.AnswerAsync(fresh, "Third?", await Replies.TextAsync());
+        // A conversation with nothing committed, even one created before the reload, asks about the current corpus.
+        ConversationSnapshot other = await _harness.AnswerAsync(empty, "About the new corpus?", await Replies.TextAsync());
         Assert.Same(reloaded, other.Corpus);
     }
 
@@ -236,6 +241,18 @@ public sealed class ConversationStoreTests : IDisposable
         ConversationSnapshot done = await _harness.AnswerAsync(id, "Second?", await Replies.TextAsync(write1h: 0, read: 2_080));
 
         Assert.Equal(4, done.Messages.Count);
+    }
+
+    [Fact]
+    public async Task AReloadThatFindsTheSameCorpus_LeavesTheConversationOpen()
+    {
+        Guid id = Store.Create().Id;
+        await _harness.AnswerAsync(id, "First?", await Replies.TextAsync());
+
+        _harness.CorpusSource.Publish(FakeCorpusSource.Ready(TestCorpus.Create()));
+
+        await _harness.AnswerAsync(id, "Second?", await Replies.TextAsync(write1h: 0, read: 2_080));
+        Assert.Equal(2, Store.Get(id)!.CommittedAnswers);
     }
 
     // --- What is not committed ----------------------------------------------------------------------

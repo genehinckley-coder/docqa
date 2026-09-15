@@ -113,8 +113,9 @@
         _announcement = message == _announcement ? message + NoBreakSpace : message;
     }
 
-    // Raised on whichever thread changed the store, so the refresh is marshalled onto this circuit. A notification
-    // already queued when the component is disposed does nothing.
+    // Raised on whichever thread changed the store, so the refresh is marshalled onto this circuit. Every streamed
+    // fragment raises one, so the button renders only when its label or announcement changes. A notification already
+    // queued when the component is disposed does nothing.
     private void OnStoreChanged(Guid id)
     {
         if (id != ConversationId)
@@ -129,8 +130,13 @@
                 return;
             }
 
+            AskStopMode mode = _mode;
+            string? announcement = _announcement;
             Refresh();
-            StateHasChanged();
+            if (_mode != mode || _announcement != announcement)
+            {
+                StateHasChanged();
+            }
         });
     }
 

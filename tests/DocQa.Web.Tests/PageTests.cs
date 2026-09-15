@@ -5,7 +5,10 @@ using Microsoft.AspNetCore.Components;
 
 namespace DocQa.Web.Tests;
 
-/// <summary>The three screens exist at the routes the nav rail links to. Items 8 to 10 fill them in.</summary>
+/// <summary>
+/// The three screens exist at the routes the nav rail links to. Items 9 and 10 fill in the last two; the
+/// Conversation screen's own tests are in <see cref="ConversationPageTests"/>.
+/// </summary>
 public sealed class PageTests : IDisposable
 {
     private readonly BunitContext _context = new();
@@ -23,7 +26,6 @@ public sealed class PageTests : IDisposable
     [Fact]
     public void EachScreen_NamesItself()
     {
-        Assert.Equal("Conversation", _context.Render<Conversation>().Find("h1").TextContent);
         Assert.Equal("Documents", _context.Render<Documents>().Find("h1").TextContent);
         Assert.Equal("Corpus settings", _context.Render<CorpusSettings>().Find("h1").TextContent);
     }
