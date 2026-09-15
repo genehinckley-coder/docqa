@@ -86,4 +86,32 @@ public sealed class CodePointIndex
         ArgumentOutOfRangeException.ThrowIfGreaterThan(codePointOffset, Length);
         return _utf16Offsets is null ? codePointOffset : _utf16Offsets[codePointOffset];
     }
+
+    /// <summary>
+    /// Converts a UTF-16 offset, such as one <see cref="string.IndexOf(string, StringComparison)"/> returns,
+    /// to a code-point offset: the unit citations use, and every displayed character position uses.
+    /// </summary>
+    /// <param name="utf16Offset">An offset from 0 to the text's UTF-16 length, inclusive.</param>
+    /// <returns>
+    /// The code-point offset of the same position. An offset between the two halves of a surrogate pair
+    /// returns the pair's own code point.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="utf16Offset"/> is negative or greater than the text's UTF-16 length.
+    /// </exception>
+    public int ToCodePoint(int utf16Offset)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(utf16Offset);
+        if (_utf16Offsets is null)
+        {
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(utf16Offset, Length);
+            return utf16Offset;
+        }
+
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(utf16Offset, _utf16Offsets[Length]);
+        int found = Array.BinarySearch(_utf16Offsets, utf16Offset);
+
+        // Not a boundary: the offset falls inside a pair, so it belongs to the code point that starts before it.
+        return found >= 0 ? found : ~found - 1;
+    }
 }

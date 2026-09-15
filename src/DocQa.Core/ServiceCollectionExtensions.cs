@@ -2,6 +2,7 @@ using DocQa.Core.Answering;
 using DocQa.Core.ApiClient;
 using DocQa.Core.Configuration;
 using DocQa.Core.Corpus;
+using DocQa.Core.Quotes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -17,7 +18,8 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers <see cref="DocQaOptions"/> with startup validation, the system clock, the Anthropic
-    /// client provider, and the corpus service, whose load starts in the background when the host starts.
+    /// client provider, the answer service, the quote checker, and the corpus service, whose load starts in
+    /// the background when the host starts.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">Configuration containing the <c>DocQa</c> section.</param>
@@ -65,6 +67,7 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<IOptions<DocQaOptions>>(),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<AnswerService>>()));
+        services.TryAddSingleton<QuoteChecker>();
         services.TryAddSingleton<CorpusLoader>();
         services.TryAddSingleton<CorpusService>();
         services.AddHostedService<CorpusStartupLoader>();

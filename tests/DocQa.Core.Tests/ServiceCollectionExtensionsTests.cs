@@ -1,6 +1,7 @@
 using DocQa.Core.Answering;
 using DocQa.Core.Configuration;
 using DocQa.Core.Corpus;
+using DocQa.Core.Quotes;
 using DocQa.Core.Tests.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -87,6 +88,14 @@ public sealed class ServiceCollectionExtensionsTests
         AnswerFailedException failure = Assert.IsType<AnswerFailedException>(ex);
         Assert.Equal(AnswerFailureKind.Credentials, failure.Kind);
         Assert.Contains(Path.Combine(ContentRoot, "key.txt"), failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheQuoteChecker_ResolvesAsASingleton()
+    {
+        using ServiceProvider services = Build(TestSettings.Valid());
+
+        Assert.Same(services.GetRequiredService<QuoteChecker>(), services.GetRequiredService<QuoteChecker>());
     }
 
     [Fact]

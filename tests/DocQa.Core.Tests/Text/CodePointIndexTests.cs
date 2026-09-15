@@ -89,6 +89,39 @@ public sealed class CodePointIndexTests
         Assert.Equal(quote, Slice(text, CodePointIndex.Build(text), start, end));
     }
 
+    [Theory]
+    [InlineData("abcd")]
+    [InlineData(WithNonBmp)]
+    public void ToCodePoint_InvertsToUtf16_AtEveryBoundary(string text)
+    {
+        CodePointIndex index = CodePointIndex.Build(text);
+
+        for (int offset = 0; offset <= index.Length; offset++)
+        {
+            Assert.Equal(offset, index.ToCodePoint(index.ToUtf16(offset)));
+        }
+    }
+
+    [Fact]
+    public void ToCodePoint_InsideASurrogatePair_ReturnsThePairsCodePoint()
+    {
+        // "ab", then the pair at UTF-16 units 2 and 3: unit 3 is its low half.
+        Assert.Equal(2, CodePointIndex.Build(WithNonBmp).ToCodePoint(3));
+    }
+
+    [Theory]
+    [InlineData("abcd", -1)]
+    [InlineData("abcd", 5)]
+    [InlineData(WithNonBmp, -1)]
+    [InlineData(WithNonBmp, 7)]
+    public void ToCodePoint_RefusesOffsetsOutsideTheText(string text, int utf16Offset)
+    {
+        // WithNonBmp is 6 UTF-16 units, so 6 converts and 7 does not.
+        CodePointIndex index = CodePointIndex.Build(text);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => index.ToCodePoint(utf16Offset));
+    }
+
     private static string Slice(string text, CodePointIndex index, int start, int end)
     {
         int from = index.ToUtf16(start);

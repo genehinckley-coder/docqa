@@ -1601,6 +1601,50 @@ of them exposed the defect above.
      async iterators (checked in the 12.47.0 assembly). They do nothing until the first
      `MoveNextAsync`, which is inside the mapped `try`.
 
+**2026-09-14, item 5.** Done on branch `item-5-quote-checker`. `QuoteChecker` checks each distinct cited span
+against the conversation's corpus snapshot, character for character, and builds a `QuoteReport`: one outcome per
+source, the coverage of each cited block, and the share of the answer that cites nothing.
+- **Tests:** 401 offline Core tests (68 of them new) and 19 Web tests pass. Every case in the prototype's
+  `test_quotes.py` is ported. The one exception is its check that the module never uses `assert`, which has no C#
+  equivalent; a test that hostile offsets never throw takes its place.
+- **Cost:** none. Nothing billed was called.
+- **Delivered for later items:**
+  - `QuoteChecker`, registered in DI, with `Check` and `BuildReport`, for item 6
+  - `QuoteReport`, `QuoteCheck`, `BlockCoverage` and `MatchStatus.ToDisplayName`, for items 8 and 9
+  - `QuoteChecker.MatchDisclaimer`, copied verbatim from the prototype, for item 8
+  - `CodePointIndex.ToCodePoint`, the reverse of `ToUtf16`, so a quote found by `IndexOf` is reported in code points
+- **Decision (user, 2026-09-14): `NotCheckable` is kept.** The checker reads citations from the message without
+  throwing, and reports one it cannot read as a `char_location` citation as `NotCheckable`, keyed on its type and
+  quote. It cannot happen through `AnswerService` today, which already fails such a turn as `Unexpected`.
+- **Additions beyond the plan's text:**
+  - **Offsets are validated as `long`, before any conversion.** An offset beyond the range of an `int` is
+    `OutOfRange` and never overflows.
+  - **A `char_location` citation missing its text or an offset is `NotCheckable`,** as one of another kind is.
+  - **The degenerate detail names the rule, not a constant.** The prototype's names `config.MIN_CITATION_LENGTH`;
+    this one says "under the minimum citation length (8)".
+- **Finding: the canned answer's offsets do not point at its quotes.**
+  - **What:** item 4's `CannedAnswer` cites 851–880 and 950–970 in the spike fixture's document A. Its two quotes
+    are at code points 883 and 998.
+  - **What the checker does:** it reports both as mismatches, and names each quote's real position, +32 and +48
+    from the cited start. That is the offset error the mismatch detail exists to tell apart from a quote that is
+    not in the document at all.
+  - **What changed:** nothing in the canned answer, since `ReplayConverterTests` pins its JSON. A test now asserts
+    the two mismatches, with the real positions counted independently of the checker.
+
+**Adversarial review.** One read-only review by a second model (Copilot CLI, `gpt-5.6-luna`). It found one issue,
+with no Critical or High finding, and it was fixed.
+1. **Medium, fixed:** the mismatch detail could name a position where the quote does not occur.
+   - **The cause:** the search for the quote elsewhere in the document was a UTF-16 `IndexOf`. A quote that starts
+     with a lone low surrogate, or ends with a lone high one, could match half of a surrogate pair. `ToCodePoint`
+     then rounded that position to the pair's start. Python's `str.find` works on code points and cannot match
+     inside a character, so the prototype reports such a quote as appearing nowhere.
+   - **The fix:** an occurrence counts only if it starts and ends on a code-point boundary; otherwise the search
+     continues. Three tests cover a quote starting inside a pair, one ending inside a pair, and a later occurrence
+     on a boundary. Traced by hand, not run: the unfixed code fails each of them, reporting a position inside a
+     pair where the fixed code reports none, or character 1 instead of 13.
+   - **Why it matters little in practice:** it needs a lone surrogate in `cited_text`, and it affects only the
+     wording of a mismatch, never a status.
+
 ## Plan Review Log
 
 **2026-09-13, subagent review of the first draft.** No critical findings; four high, seven
