@@ -51,6 +51,10 @@ public sealed class ConversationStore : IConversationStore, IDisposable
 
     internal const string NewConversationTitle = "New conversation";
 
+    internal const string CorpusReplacedRefusal =
+        "The corpus was reloaded and has changed since this conversation began, so its answers are checked against " +
+        "text that is no longer current. Start a new conversation to ask about the current corpus.";
+
     private const int TitleLength = 60;
 
     private readonly IAnswerService _answers;
@@ -264,10 +268,18 @@ public sealed class ConversationStore : IConversationStore, IDisposable
 
             // A conversation keeps the snapshot its committed turns were built from. Until then, each question
             // uses the corpus current when it is asked.
-            CorpusSnapshot? corpus = conversation.Corpus ?? (_corpus.State as CorpusState.Ready)?.Corpus;
+            CorpusSnapshot? current = (_corpus.State as CorpusState.Ready)?.Corpus;
+            CorpusSnapshot? corpus = conversation.Corpus ?? current;
             if (corpus is null)
             {
                 return AskResult.Refused("The corpus is not loaded, so there is nothing to ask about yet.");
+            }
+
+            // After a reload changes the corpus, continuing would quote-check against text that is no longer
+            // current, and clearing the conversation would lose work; so it stays readable but takes no questions.
+            if (current is not null && corpus.Fingerprint != current.Fingerprint)
+            {
+                return AskResult.Refused(CorpusReplacedRefusal);
             }
 
             // messages[0] is rebuilt from the corpus, never sliced from an earlier conversation, so no earlier

@@ -13,6 +13,16 @@ internal sealed class FakeCorpusSource(CorpusState state) : ICorpusSource
 
     public event Action? StateChanged;
 
+    /// <summary>How many times <see cref="ReloadAsync"/> was called.</summary>
+    public int Reloads { get; private set; }
+
+    /// <summary>Counts the call; a test publishes the outcome itself.</summary>
+    public Task ReloadAsync()
+    {
+        Reloads++;
+        return Task.CompletedTask;
+    }
+
     public static CorpusState.Ready Ready(CorpusSnapshot corpus) =>
         new(corpus, new FingerprintCheck(FingerprintStatus.FirstRun, null, []), "", DateTimeOffset.UnixEpoch);
 

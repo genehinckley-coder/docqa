@@ -31,7 +31,290 @@ button.d1-card {
     box-shadow: none;
 }
 
-/* The screens not yet built (plan items 8 to 10). */
+/* The Conversation screen's question-and-answer blocks, shared by a finished answer (AnswerView) and the one
+   streaming (InProgressView), which scoped CSS cannot share. Answers are plain text and keep their line breaks. */
+.qa {
+    max-width: 720px;
+}
+
+.qa__eyebrow {
+    margin-bottom: 6px;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-subtle);
+}
+
+.qa__eyebrow--answer {
+    margin-top: var(--space-5);
+    color: var(--text-accent);
+}
+
+.qa__eyebrow--help {
+    border-bottom: 1px dotted var(--text-subtle);
+    cursor: help;
+}
+
+.qa__question {
+    margin: 0;
+    font-family: var(--font-text);
+    font-size: 19px;
+    line-height: var(--leading-normal);
+    color: var(--text-heading);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.qa__empty {
+    margin: 0;
+    font-family: var(--font-text);
+    font-style: italic;
+    color: var(--text-muted);
+}
+
+.qa__assembling {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--text-subtle);
+}
+
+.qa__dots {
+    display: inline-flex;
+    gap: 3px;
+}
+
+.qa__dots > span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--green-600);
+    animation: qa-pulse 1.2s infinite;
+}
+
+.qa__dots > span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.qa__dots > span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes qa-pulse {
+    0%, 100% {
+        opacity: 0.25;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .qa__dots > span {
+        animation: none;
+        opacity: 0.6;
+    }
+}
+
+/* The thinking summary streams dimmed under the indicator until the answer's text starts. */
+.qa__thinking-live {
+    max-height: 12em;
+    margin: var(--space-3) 0 0;
+    overflow-y: auto;
+    font-family: var(--font-text);
+    font-size: 15px;
+    font-style: italic;
+    line-height: var(--leading-normal);
+    color: var(--text-subtle);
+    white-space: pre-wrap;
+}
+
+.qa__reasoning {
+    margin-top: var(--space-3);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--text-subtle);
+}
+
+.qa__reasoning > summary {
+    letter-spacing: var(--tracking-wide);
+    cursor: pointer;
+}
+
+.qa__reasoning-text {
+    margin: var(--space-2) 0 0;
+    font-family: var(--font-text);
+    font-size: 15px;
+    font-style: italic;
+    line-height: var(--leading-normal);
+    color: var(--text-muted);
+    white-space: pre-wrap;
+}
+
+.qa__reasoning-note {
+    margin: var(--space-2) 0 0;
+    font-family: var(--font-text);
+    font-size: 14px;
+    font-style: italic;
+    color: var(--text-subtle);
+}
+
+.qa__notice,
+.qa__warning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    font-family: var(--font-text);
+    font-size: 15px;
+    color: var(--text-body);
+}
+
+.qa__notice {
+    margin-top: var(--space-3);
+}
+
+.qa__notice > .d1-badge,
+.qa__warning > .d1-badge {
+    flex-shrink: 0;
+}
+
+.qa__sources {
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: var(--border-hairline);
+}
+
+.qa__source-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.qa__source {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+}
+
+/* A marker's link lands here; the row shows where it landed. */
+.qa__source:target {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+}
+
+.qa__source-number {
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-subtle);
+}
+
+.qa__source-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.qa__source-label {
+    font-family: var(--font-ui);
+    font-size: 12px;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-heading);
+}
+
+.qa__source-quote {
+    font-family: var(--font-text);
+    font-size: 14px;
+    font-style: italic;
+    color: var(--text-muted);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.qa__source-detail {
+    font-family: var(--font-text);
+    font-size: 13px;
+    color: var(--status-danger);
+}
+
+.qa__quality {
+    margin: 10px 0 0;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--text-subtle);
+}
+
+.qa__thin {
+    margin-top: var(--space-2);
+    font-family: var(--font-text);
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.qa__thin-title {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-subtle);
+}
+
+.qa__thin-list {
+    margin: var(--space-1) 0 0;
+    padding-left: var(--space-5);
+}
+
+.qa__warnings {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.qa__warning {
+    font-size: 14px;
+}
+
+.qa__disclaimer {
+    margin: 10px 0 0;
+    font-family: var(--font-text);
+    font-size: 13px;
+    font-style: italic;
+    color: var(--text-subtle);
+}
+
+.qa__stopping {
+    margin: var(--space-3) 0 0;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-subtle);
+}
+
+.qa__meta {
+    margin: 10px 0 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-subtle);
+}
+
+/* The screens not yet built (plan items 9 and 10). */
 .page-placeholder {
     padding: var(--space-6) var(--space-7);
 }

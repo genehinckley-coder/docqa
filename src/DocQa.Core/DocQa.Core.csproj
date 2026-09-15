@@ -18,6 +18,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="DocQa.Core.Tests" />
+    <!-- The screens' tests build corpus snapshots, whose constructors are internal. -->
+    <InternalsVisibleTo Include="DocQa.Web.Tests" />
   </ItemGroup>
 
 </Project>
