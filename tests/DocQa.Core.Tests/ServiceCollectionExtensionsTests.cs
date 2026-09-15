@@ -1,5 +1,6 @@
 using DocQa.Core.Answering;
 using DocQa.Core.Configuration;
+using DocQa.Core.Conversations;
 using DocQa.Core.Corpus;
 using DocQa.Core.Quotes;
 using DocQa.Core.Tests.TestSupport;
@@ -96,6 +97,22 @@ public sealed class ServiceCollectionExtensionsTests
         using ServiceProvider services = Build(TestSettings.Valid());
 
         Assert.Same(services.GetRequiredService<QuoteChecker>(), services.GetRequiredService<QuoteChecker>());
+    }
+
+    [Fact]
+    public void TheConversationStore_IsOneSingleton_OverTheCorpusService_WithoutAHost()
+    {
+        using ServiceProvider services = Build(TestSettings.Valid());
+
+        // No IHostApplicationLifetime is registered here, so this also shows the store resolves without one.
+        ConversationStore store = services.GetRequiredService<ConversationStore>();
+
+        Assert.Same(store, services.GetRequiredService<IConversationStore>());
+        Assert.Same(services.GetRequiredService<CorpusService>(), services.GetRequiredService<ICorpusSource>());
+        Assert.Same(services.GetRequiredService<CacheWarmthTracker>(), services.GetRequiredService<CacheWarmthTracker>());
+        Assert.Same(services.GetRequiredService<CacheBaselines>(), services.GetRequiredService<CacheBaselines>());
+        Assert.Same(services.GetRequiredService<CostEstimator>(), services.GetRequiredService<CostEstimator>());
+        Assert.Empty(store.List());
     }
 
     [Fact]

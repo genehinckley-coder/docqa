@@ -1,6 +1,7 @@
 using DocQa.Core.Answering;
 using DocQa.Core.ApiClient;
 using DocQa.Core.Configuration;
+using DocQa.Core.Conversations;
 using DocQa.Core.Corpus;
 using DocQa.Core.Quotes;
 using Microsoft.Extensions.Configuration;
@@ -70,7 +71,16 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<QuoteChecker>();
         services.TryAddSingleton<CorpusLoader>();
         services.TryAddSingleton<CorpusService>();
+        services.TryAddSingleton<ICorpusSource>(provider => provider.GetRequiredService<CorpusService>());
         services.AddHostedService<CorpusStartupLoader>();
+
+        // Conversations live for the app's lifetime and are shared by every tab, as are the cache predictions
+        // and baselines, which span conversations.
+        services.TryAddSingleton<CacheWarmthTracker>();
+        services.TryAddSingleton<CacheBaselines>();
+        services.TryAddSingleton<CostEstimator>();
+        services.TryAddSingleton<ConversationStore>();
+        services.TryAddSingleton<IConversationStore>(provider => provider.GetRequiredService<ConversationStore>());
 
         return services;
     }
