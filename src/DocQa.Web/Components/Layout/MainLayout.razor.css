@@ -1,3 +1,19 @@
+/* The whole window: the rail, then the screen. Each screen scrolls its own panes, as in the design. */
+.shell {
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+    background: var(--surface-page);
+}
+
+.shell__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
 #blazor-error-ui {
     color-scheme: light only;
     background: lightyellow;

@@ -1686,6 +1686,95 @@ Medium issue.
   cleanup, message alternation, the replay rule, the returned question, the settings lock, the baseline's tolerance and
   classification, the tracker's TTL, margin and keys, the cost of a credentials failure, and the estimator's formulas.
 
+**2026-09-14, item 7.** Done on branch `item-7-ui-shell`. The design system's CSS is in the app unchanged, the Razor
+primitives emit its class names, the nav rail and layout follow the DocQA Prototype design, and the three screens are
+placeholders at their routes. The Ask/Stop button is built here rather than in item 8.
+- **Tests:** 486 offline Core tests and 121 Web tests pass. 103 of the Web tests are new, and the template's smoke
+  test is gone.
+  - **Mutation checks, two guards:** each was removed in turn, and a test failed each time.
+    - never setting the Ask latch
+    - dropping the rule that an answer's end is announced only in the conversation where it was seen
+- **Smoke run:** the app was started with its key path pointing at a missing file, so no request was sent.
+  - Every page and stylesheet returned 200: the three pages, `app.css`, the scoped CSS bundle, and all twelve
+    design-system files that `styles.css` imports.
+  - The fingerprinted `styles.css` resolves its relative imports.
+  - The prerendered page carries the rail, `aria-current="page"` and "$0.00".
+  - The corpus load reported the missing key, and the app stayed up.
+- **Cost:** none. Nothing billed was called.
+- **Delivered for later items:**
+  - `Button`, `Badge`, `Card`, `Tag`, `TextInput`, `Select` (with `SelectOption`), `Tooltip`, `Icon` and
+    `LiveRegion`, in `Components/Ds/`, for items 8 to 10
+  - `AskStopButton`, with the screen's live region, for item 8
+  - `NavRail`, showing the app's total cost, and `Formatting.Money`
+  - `FakeConversationStore`, for the Web tests of items 8 to 10
+- **Decisions (user, 2026-09-14):**
+  - The design is Claude Design project `a364b4bf-ab9c-4b4a-8a69-bd156cff3e38`; its file is
+    `plans/DocQA Prototype.dc.html`.
+  - The Ask/Stop button's behavior is built in item 7. Item 8 places it on the Conversation screen, beside the input
+    that calls `Store.Ask`.
+- **The CSS copy:**
+  - **Source:** 13 files from design-system project `741ce686-82d8-4ea2-9e43-990c8752d45a`, pulled 2026-09-14. The
+    source is recorded in `wwwroot/css/ds/README.md`.
+  - **Checked against the design:** six of the 13 were compared with the copies the prototype design embeds, and are
+    identical.
+  - **Layout:** the design system has one CSS file per group, not one per component. The Tabs, Dialog and Toast rules
+    come along unused, so that the copy stays exact.
+- **Additions beyond the plan's text:**
+  - **The Ask/Stop button owns the screen's live region.**
+    - **What it announces:** "Answer complete", "Answer stopped", "Answer failed" or "Answer not added to the
+      conversation".
+    - **When:** only when it sees this conversation's answer end, so never on a fresh render or on a switch of
+      conversation.
+    - **Repeats:** a repeated announcement gains a trailing no-break space, so that it is read again.
+  - **Stopping comes from the store,** through `InProgressAnswer.IsStopping`, so every tab shows it.
+    - A click acts on the state the button showed.
+    - A Stop clicked just as the answer finishes therefore never becomes an Ask.
+  - **Ask clicks are ignored while the page's `OnAsk` is running,** so a double click sends one question.
+  - **A clickable `Card` or `Tag` is a `<button>`.** A clickable card holds only spans, and it cannot have a footer.
+  - **No `MarkupString` anywhere.**
+    - Icons are real SVG elements, chosen from an enum.
+    - A test renders a `<script>` payload through every primitive that shows text, and finds it encoded.
+  - **`Select` shows a disabled option's reason beside its label.** It also marks the chosen option `selected`, so the
+    prerendered page shows the right choice before the circuit starts.
+  - **Adapter rules in `app.css`,** since the copied CSS is never edited:
+    - a card that is a button resets the browser's button styles
+    - an `aria-disabled` button does not look pressed
+    - `.visually-hidden`, for the live region
+  - **The rail's focus ring is green-500,** as in the design system's night theme; green-600 does not show on ink.
+    The ring is drawn inside the link, because the rail clips overflow.
+- **Deviations from the design:**
+  - The rail's eyebrow reads "DocQA", not the prototype's "NOTRAG".
+  - The rail shows the app's total cost, labeled "Total cost", per this plan. The design's "Session cost" there is
+    the active conversation's; item 10's Session cost card shows that.
+- **Known limits, WCAG 1.4.13:**
+  - Escape dismisses a tooltip only while its trigger has focus. Dismissing one opened by hover would need a
+    document-level key listener in JS.
+  - Moving the pointer across the 7px gap onto the bubble closes it.
+  - The only planned tooltip is item 8's "Sources" label.
+- **Tooling notes, from the mutation checks:**
+  - A mutation that leaves a field assigned but never read fails the build under `TreatWarningsAsErrors` (CS0414).
+    The test run then reports nothing, which can pass for a silent success.
+  - The first version of the Ask-latch test awaited its second click before releasing the page's pending Ask. Without
+    the latch it therefore hung instead of failing. It now awaits neither click until the Ask is released in a
+    `finally`, and fails in milliseconds without the latch. Run a mutation check under `timeout`.
+
+**Adversarial review.** One read-only review by a second model (Copilot CLI, `gpt-5.6-luna`). It reported two High and
+three Medium findings, and no Critical or Low ones.
+1. **High, rejected:** "the Conversation route never renders the Ask/Stop button."
+   - **Why rejected:** that screen, with its input, `Store.Ask` and the Enter-key module, is item 8.
+2. **High, fixed as Low:** "a store notification queued before disposal can render a disposed component."
+   - **Why Low:** Blazor ignores a render request from a disposed component, so no exception results.
+   - **The fix:** a disposed guard in the button and the rail makes that explicit.
+3. **Medium, fixed:** Ask had no guard against a second click while the page's `OnAsk` was still running. It now has
+   one, with a test.
+4. **Medium, partly accepted:** "the same-element test compares component instances, not DOM nodes."
+   - **Why the core claim is rejected:** bUnit rebuilds its DOM on each render, so node identity there proves nothing
+     about the browser. What Blazor's diff preserves is the retained `Button` instance, whose template has one fixed
+     `<button>`.
+   - **What it led to:** the gaps it named that were real are now tested, a change of conversation and rapid clicks.
+5. **Medium, fixed:** `LiveRegion` was built but announced nothing. The Ask/Stop button now holds the one region and
+   announces each answer's end.
+
 ## Plan Review Log
 
 **2026-09-13, subagent review of the first draft.** No critical findings; four high, seven

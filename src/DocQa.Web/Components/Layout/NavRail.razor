@@ -1,0 +1,74 @@
+@implements IDisposable
+@inject IConversationStore Store
+
+<nav class="rail" aria-label="Main">
+    <div class="rail__masthead">
+        <div class="rail__eyebrow">DocQA</div>
+        <div class="rail__title">Title 41 Q&amp;A</div>
+    </div>
+    <div class="rail__links">
+        <NavLink class="rail__link" href="" Match="NavLinkMatch.All">
+            <Icon Name="IconName.Feather" />
+            <span>Conversation</span>
+        </NavLink>
+        <NavLink class="rail__link" href="documents">
+            <Icon Name="IconName.BookOpen" />
+            <span>Documents</span>
+        </NavLink>
+        <NavLink class="rail__link" href="settings">
+            <Icon Name="IconName.Settings" />
+            <span>Corpus settings</span>
+        </NavLink>
+    </div>
+    <div class="rail__cost">
+        <div class="rail__eyebrow">Total cost</div>
+        <div class="rail__amount">@Formatting.Money(_cost.Known.Total)</div>
+        @if (_cost.UnknownCostTurns > 0)
+        {
+            <div class="rail__note">Excludes @Formatting.Count(_cost.UnknownCostTurns, "turn") of unknown cost</div>
+        }
+        @if (_cost.UnreportedOutputTurns > 0)
+        {
+            <div class="rail__note">Output not reported for @Formatting.Count(_cost.UnreportedOutputTurns, "stopped or failed turn")</div>
+        }
+    </div>
+</nav>
+
+@code {
+    private ConversationCost _cost = ConversationCost.Zero;
+    private bool _disposed;
+
+    /// <inheritdoc/>
+    protected override void OnInitialized()
+    {
+        _cost = Store.TotalCost;
+        Store.Changed += OnStoreChanged;
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        _disposed = true;
+        Store.Changed -= OnStoreChanged;
+    }
+
+    // Every streamed fragment raises Changed, so re-render only when the total actually moved. A notification
+    // already queued when the component is disposed does nothing.
+    private void OnStoreChanged(Guid changedId) =>
+        _ = InvokeAsync(() =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            ConversationCost cost = Store.TotalCost;
+            if (cost == _cost)
+            {
+                return;
+            }
+
+            _cost = cost;
+            StateHasChanged();
+        });
+}
