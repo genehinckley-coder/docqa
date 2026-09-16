@@ -169,7 +169,8 @@ reason less thoroughly.
 - **Opus 5 at `high`:** measured by the prototype.
 - **Every other combination:** an estimate or an assumption, because the output length
   (thinking plus answer) of an effort level is not published for this workload. Every row
-  below says which it is. Item 12 replaces the estimates with measurements.
+  below says which it is. Item 12 would have replaced the estimates with measurements; it was
+  decided against on 2026-09-15, so these bases are final unless it is ever run.
 
 ### Prices, USD per million tokens
 
@@ -1151,7 +1152,22 @@ line count.
 **Risks:** None.
 **Open questions:** None.
 
-### 12. Cost and quality measurement across models and levels *(nice-to-have; needs your go-ahead, about $16–$18.50)*
+### 12. Cost and quality measurement across models and levels *(nice-to-have — NOT RUN)*
+
+> **Decision, 2026-09-15: nice-to-have, and not to be run.** (User decision.) The $16–$18.50
+> is not worth what it buys: the preview's estimates stand, and every row on the Corpus
+> settings screen already shows its own basis — measured, estimate or assumption — so a user
+> is never shown an estimate dressed up as a measurement. Do not run this item, or any part
+> of it, without the user asking for it first.
+>
+> **What stays unmeasured as a result:** every combination but Opus 5 at `high`. The
+> `EstimatedOutputTokens` ranges in `appsettings.json` remain estimates and assumptions, and
+> the **Cost Reference**'s bases stay as written. Nothing else in the app depends on them:
+> they feed the cost preview and nothing more.
+>
+> **If it is ever run,** the method below is unchanged, and the plan's own advice holds — a
+> single run per combination is calibration, not a benchmark.
+
 **Why:** Every **Cost Reference** figure except Opus 5 at `high` is an estimate or an
 assumption. The selector's preview is only honest once they are measured. Measuring also
 shows what the cheaper settings give up on this corpus, which no published curve can.
@@ -1181,9 +1197,8 @@ shows what the cheaper settings give up on this corpus, which no published curve
 numbers the preview shows.
 **Risks:** A single run per combination is noisy, especially at `max`, which the SDK guidance
 calls prone to overthinking. Treat the results as calibration, not a benchmark.
-**Open questions:** Whether to run it at all, given the cost. It could instead run earlier,
-through a short script over the frozen prototype with only its model and effort varied.
-That would inform the defaults sooner, at the same cost.
+**Open questions:** None. "Whether to run it at all, given the cost" was the open question,
+and it is answered above: no.
 
 ## Sequencing
 
@@ -1202,7 +1217,8 @@ That would inform the defaults sooner, at the same cost.
 6. **Items 8, 9 and 10,** which need items 6 and 7.
 7. **Item 11** runs throughout. The manual acceptance session is last among the required
    items.
-8. **Item 12,** only with your go-ahead, after item 11.
+8. ~~**Item 12,** only with your go-ahead, after item 11.~~ **Decided against, 2026-09-15.**
+   Item 11 is therefore the last item, and the plan is complete at it.
 
 ## What We're NOT Doing (and Why)
 
@@ -2010,6 +2026,89 @@ rejected.
      reason, and was removed.
 5. **Low, fixed:** the tables had no accessible name of their own; a section's heading names the section, not the
    table inside it. Each table now carries `aria-labelledby` pointing at its heading, which a test pins.
+
+**2026-09-15, item 11.** Done on branch `item-11-tests-acceptance`. Item 11 is an audit: each
+earlier item landed with its own tests, so the work was to check the plan's checklist line by
+line and fill what was missing, then spend the live acceptance.
+- **The suite before the audit:** 780 tests, all passing. After it, **782**.
+- **Two gaps, both closed:**
+  - **The live sump acceptance test did not exist.** `SumpAnswerLiveTests` asks the
+    prototype's question verbatim on the real corpus, through the production path end to end
+    — `CorpusLoader`, the real system prompt, `AnswerService` and `QuoteChecker` — and
+    asserts that Section 175.410 appears, that the corpus prefix was cached, and that every
+    distinct cited span matched. Unlike the item 1 spike, which varies its system prompt to
+    stay cold, it writes and reads the production cache entry.
+  - **`CreditExhausted`** was the one failure kind that can reach the store from a request
+    already sent and was not in the roles-still-alternate theory. Added, making seven rows.
+- **`LiveApi` hardening,** from the adversarial review below:
+  - The run budget is checked against what a call is **expected** to cost rather than against
+    zero, so a run cannot start a $2 answer with $0.10 of budget left.
+  - A request that never completes now counts its input-side usage against the budget, so a
+    stopped or failed answer cannot be paid for twice in one run.
+  - The budget rises to **$4.00**, covering the item 1 spike plus this answer, and the log is
+    `TestResults/live.log` rather than `item1-live.log`.
+
+**Live acceptance: passed, and it reproduces the prototype.** The full live suite (6 tests)
+ran for **$2.55**, against the ~$3.16 estimate.
+
+| | Prototype (2026-09-12) | This app (2026-09-15) |
+|---|---|---|
+| 1-hour prefix written | 199,745 tokens | **199,745 tokens** |
+| Cold sump question | $2.16 and $2.13 | **$2.15** |
+| Output tokens | 5,313 and 6,358 | **6,171** |
+| Elapsed | 55–67 s | **64 s** |
+| Quotes matched | 42 of 42 | **41 of 41** distinct spans, 44 citations |
+| Stop reason | `end_turn` | **`end_turn`** |
+
+The answer names §175.410(a)–(n) and cross-references §175.300(f), 175.420(b), 175.425(h),
+175.630(f), 175.640(a), 175.700(f) and 176.430(b)(6) — the reference answer's provisions.
+19% of it is in blocks with no citation. The carried-over baseline therefore holds: the
+default combination is the prototype's shape, and it behaves as the prototype measured.
+
+**Adversarial review.** One read-only review by a second model (Copilot CLI, `gpt-5.6-luna`)
+of the new live test and the `LiveApi` change. Three findings, all confirmed and fixed.
+1. **High:** the run budget was not a cap on what a run may start — it compared the total
+   spent against the budget and ignored the cost of the call about to be made, and no
+   failed, stopped or timed-out request ever counted at all. Both fixed as above.
+2. **Medium:** `Assert.Empty` over a projection discards the projection, so a failed quote
+   would have reported only that a list was not empty. It is now `Assert.True` carrying the
+   failing quotes, their statuses and their mismatch details into the message.
+3. **Low:** the timeout catch relabeled any `OperationCanceledException` as the 3-minute cap.
+   It now checks that the cap's own token is the one that was cancelled.
+
+**Manual acceptance session: run in part, and closed by decision.** (User decision,
+2026-09-15: the remaining checks were not worth their cost, and the estimates stand.)
+
+- **Run in the app, on Opus 5 at `high`, against the entry the live test had written:**
+
+  | Check | Cost |
+  |---|---|
+  | First question in the app, reading the corpus entry | **$0.12** |
+  | Refreshing the tab mid-answer; the answer completed and committed | **$0.17** |
+  | Enter and Shift+Enter, and focus through Ask → Stop → Stopping… → Ask | **$0.14** |
+
+- **What the $0.12 proves, and it is the useful result:** the app read the corpus entry that
+  the live test's process wrote. The 1-hour entry is shared across processes, not per client
+  instance, so the cache survives an app restart within its TTL.
+- **Warm answers can cost less than the preview's low end.** The corpus read is a fixed $0.10,
+  so $0.12 is about 800 output tokens and $0.14 about 1,600. The $0.18–$0.30 warm band came
+  from the sump question's 3,200–6,400-token answers, and a short question lands under it. The
+  band is an estimate of this corpus's *typical* answer, not a floor. Item 12 would widen its
+  low end if it ever measures short questions.
+- **Not run, by decision:** the follow-up tail read, the new-conversation read, the stopped
+  turn, and the comparison against the Claude Console's billed usage. The follow-up and
+  new-conversation reads are covered by the prototype's live run ($0.23 and $0.18) and by
+  item 1's live A → B → A check; the stopped turn is covered offline by the Stop tests.
+- **One question stays open, and the Console comparison was the only way to close it:**
+  whether output generated before a Stop is billed. No first-party documentation states it.
+  This changes nothing in the app, which already claims only that Stop ends the wait and
+  never that it saves money, and labels a stopped turn "input billed about $X; output before
+  Stop not reported".
+- **Not a defect, but worth recording:** the app was first started with `--no-launch-profile`,
+  which drops `ASPNETCORE_ENVIRONMENT=Development`. Run as Production against unpublished
+  output, Static Web Assets are off, so `blazor.web.js` and the scoped stylesheet 404: the
+  page renders unstyled and the circuit never starts. That is standard ASP.NET behavior, and
+  `dotnet run` uses the `http` profile, but a Production run needs `dotnet publish` first.
 
 ## Plan Review Log
 

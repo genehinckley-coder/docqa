@@ -22,10 +22,17 @@ public sealed class ConversationStoreTests : IDisposable
 
     public void Dispose() => _harness.Dispose();
 
+    /// <summary>
+    /// Every failure kind that can reach the store from a request already sent.
+    /// <see cref="AnswerFailureKind.Credentials"/> has its own test, because nothing is sent and the turn
+    /// is known to have cost nothing; <see cref="AnswerFailureKind.Unexpected"/> is raised by the store
+    /// itself, not by the answer service.
+    /// </summary>
     public static TheoryData<AnswerFailureKind> FailureKinds =>
     [
         AnswerFailureKind.Authentication,
         AnswerFailureKind.RateLimited,
+        AnswerFailureKind.CreditExhausted,
         AnswerFailureKind.ApiError,
         AnswerFailureKind.Connection,
         AnswerFailureKind.StreamEndedEarly,

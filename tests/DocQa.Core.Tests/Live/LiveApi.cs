@@ -32,7 +32,7 @@ internal static class LiveApi
         .AddJsonFile(RepoPaths.Combine("src", "DocQa.Web", "appsettings.json"), optional: false, reloadOnChange: false)
         .Build());
 
-    private static string LogPath { get; } = RepoPaths.Combine("TestResults", "item1-live.log");
+    private static string LogPath { get; } = RepoPaths.Combine("TestResults", "live.log");
 
     public static void RequireEnabled() =>
         Assert.SkipUnless(
@@ -74,8 +74,51 @@ internal static class LiveApi
         }
     }
 
-    /// <summary>The most one live test run may spend; after it, further billed calls are refused.</summary>
-    public const decimal RunBudget = 3.00m;
+    /// <summary>
+    /// The most one live test run may spend; after it, further billed calls are refused. It covers the
+    /// item 1 spike (about $1) and item 11's sump acceptance answer (about $2.16), with headroom for the
+    /// cold corpus write being larger than measured.
+    /// </summary>
+    public const decimal RunBudget = 4.00m;
+
+    /// <summary>
+    /// Refuses a billed call that would take the run past <see cref="RunBudget"/>. Called by
+    /// <see cref="StreamAsync"/>, and directly by tests that send through the production answer service.
+    /// </summary>
+    /// <param name="expected">
+    /// What this call is expected to cost, when that is known before sending. The budget is a cap on what
+    /// the run may start, not on what it may be billed: a call that costs more than expected is discovered
+    /// only after it has been paid for.
+    /// </param>
+    /// <exception cref="InvalidOperationException">The call would take the run past its budget.</exception>
+    public static void RequireBudget(decimal expected = 0m)
+    {
+        lock (LogLock)
+        {
+            if (_totalCost + expected >= RunBudget)
+            {
+                throw new InvalidOperationException(
+                    $"This live run has spent ${_totalCost:F2}, and a call expected to cost ${expected:F2} would " +
+                    $"reach its ${RunBudget:F2} budget; it is refused.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds a cost to the run's total without a completed message: what a stopped, timed-out or failed
+    /// request is known to have been billed, from the usage that arrived before it ended.
+    /// </summary>
+    /// <param name="label">What was being asked.</param>
+    /// <param name="cost">The cost to count.</param>
+    public static void RecordCost(string label, decimal cost)
+    {
+        lock (LogLock)
+        {
+            _totalCost += cost;
+        }
+
+        Log($"{label}: did not complete; ${cost:F4} of input-side usage had already been reported");
+    }
 
     /// <summary>
     /// The longest one live request may run. At the measured ~95 output tokens a second, it bounds a
@@ -95,14 +138,7 @@ internal static class LiveApi
         CancellationToken ct,
         Action<RawMessageStreamEvent>? onEvent = null)
     {
-        lock (LogLock)
-        {
-            if (_totalCost >= RunBudget)
-            {
-                throw new InvalidOperationException(
-                    $"This live run has spent ${_totalCost:F2}, reaching its ${RunBudget:F2} budget; further billed calls are refused.");
-            }
-        }
+        RequireBudget();
 
         using var cap = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cap.CancelAfter(RequestCap);
@@ -158,7 +194,7 @@ internal static class LiveApi
         }
     }
 
-    /// <summary>Writes to the test output and to <c>TestResults/item1-live.log</c> (gitignored).</summary>
+    /// <summary>Writes to the test output and to <c>TestResults/live.log</c> (gitignored).</summary>
     public static void Log(string line)
     {
         TestContext.Current.TestOutputHelper?.WriteLine(line);
