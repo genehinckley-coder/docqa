@@ -1946,6 +1946,71 @@ finding, and no Critical, High or Low one. It was fixed.
    moving to it. The reveal is now left pending until the source resolves, and a test opens the screen at an answer
    that arrives afterwards, then checks that it is revealed once and only once.
 
+**2026-09-15, item 10.** Done on branch `item-10-corpus-settings`. The Corpus settings screen shows the design's four
+cards with its editable inputs replaced by read-only values: corpus health per model, the document registry, cache and
+pricing with the whole Cost Reference computed live, and the open conversation's cost by bucket.
+- **Tests:** 513 offline Core tests and 262 Web tests (23 of them new) pass. The 5 live tests were not run.
+  - **Mutation checks, five guards:** each was removed in turn, and four failed a test at once — the active
+    conversation's row marking (dropping the effort comparison marked all five of that model's rows), the warmth
+    expiry timer, the re-render guard, and the "cold write in progress" wording.
+    - **The fifth exposed a gap twice over:** dropping the conversation title from the re-render guard still passed,
+      because the test's two snapshots also differed in cost. With the cost held equal, the mutation failed as it
+      should. That gap was itself the adversarial review's first finding.
+- **Smoke run, live, and free:** started with the real key, so the corpus loaded through eight `count_tokens` calls.
+  - Every figure on the screen matches the plan's **Cost Reference** exactly, having been computed from the price
+    table and output ranges rather than copied: the measured Opus 5 at High row ($2.08–$2.16 cold, $0.18–$0.30 warm)
+    and all ten worst-case rows ($2.80/$1.10 through $5.20/$4.10, and $1.12/$0.44 through $2.08/$1.64).
+  - The corpus reads 199,749 tokens on both models, 50% of the 400,000 ceiling, with the six documents' counts
+    matching items 3 and 9.
+  - An earlier run with the key path pointing at a missing file returned 200 from all three routes and showed CORPUS
+    NOT LOADED with Retry, the registry and cost tables replaced by notices, and the price table still shown.
+- **Cost:** none. Only `count_tokens`, which is free.
+- **Delivered for later items:** `CostTables`, which builds the ten rows from the estimator and the warmth tracker and
+  words their basis and warmth, and `Formatting.Timestamp`.
+- **Additions beyond the plan's text:**
+  - **A gauge per selectable model,** since each has its own count and the guard applies to the largest. A model
+    whose count failed reads "tokens not counted" and "UNKNOWN SHARE OF CEILING".
+  - **The cost card also totals every conversation of the run,** below the open one's breakdown, because the card is
+    where cost is read and the rail shows only the total.
+  - **The open conversation's own combination is marked** in both cost tables, so the row that applies is findable
+    among ten.
+  - **The screen states what it cannot show:** each card says what is missing while the corpus is loading or failed,
+    and the cost tables say they appear once it is counted.
+  - **A row's own token count is named when it is borrowed.** The estimator prices a model with no count of its own
+    on the corpus's largest count; a note says so, so the cost table cannot contradict the health gauge.
+- **Deviations from the design:**
+  - **The cards are ordered Corpus health, Registry, Session cost, Cache and pricing,** not the design's order. Cache
+    and pricing carries three tables and spans the whole grid, so it sits last and the three narrow cards pack above
+    it.
+  - The design's editable cache TTL, token ceiling and per-document label inputs are values. Each is part of the
+    cached prefix, so an edit would cost a fresh corpus write on every model and level.
+- **Known limits:**
+  - Warmth is only ever "probably": the tracker knows this app's own requests and no other client's.
+  - Every row but Opus 5 at High is an estimate or an assumption until item 12 measures them, which each row's basis
+    column says.
+
+**Adversarial review.** One read-only review by a second model (Copilot CLI, `gpt-5.6-luna`). It reported four Medium
+findings and one Low, and no Critical or High one. Two were fixed, one partly accepted, one fixed differently, and one
+rejected.
+1. **Medium, fixed:** the re-render guard omitted the conversation's title, so a first question asked in another tab
+   left the cost card reading "New conversation". The title is now part of the guard, with the test above.
+2. **Medium, partly accepted:** "the worst-case table does not show each row's basis."
+   - **Why not a basis column:** an answer capped at its output limit is exact arithmetic on that limit, not an
+     estimate of how long an answer runs. The plan's own Cost Reference gives that table no basis column either.
+   - **What it led to:** the table now says why it carries none.
+3. **Medium, fixed differently:** "a model with no token count is silently priced on the largest count." True, and the
+   health gauge calls that count unknown, so the two cards could contradict each other. Rather than change the
+   estimator, the cache card now names any such model and says its rows are priced on the largest count.
+4. **Medium, rejected:** "missing prices, output ranges or `max_tokens` throw `KeyNotFoundException` while building the
+   tables."
+   - **Why rejected:** item 0's `DocQaOptionsValidator` runs under `ValidateOnStart` and fails start-up on a missing
+     price row, `max_tokens`, timeout or output range for any selectable model or level. The app cannot reach this
+     screen with such a gap.
+   - **What it led to:** the price table's own "no price row is configured" branch was unreachable for the same
+     reason, and was removed.
+5. **Low, fixed:** the tables had no accessible name of their own; a section's heading names the section, not the
+   table inside it. Each table now carries `aria-labelledby` pointing at its heading, which a test pins.
+
 ## Plan Review Log
 
 **2026-09-13, subagent review of the first draft.** No critical findings; four high, seven
