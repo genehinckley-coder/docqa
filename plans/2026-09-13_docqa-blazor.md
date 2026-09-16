@@ -2011,6 +2011,55 @@ rejected.
 5. **Low, fixed:** the tables had no accessible name of their own; a section's heading names the section, not the
    table inside it. Each table now carries `aria-labelledby` pointing at its heading, which a test pins.
 
+**2026-09-15, item 11.** Done on branch `item-11-tests-acceptance`. Item 11 is an audit: each
+earlier item landed with its own tests, so the work was to check the plan's checklist line by
+line and fill what was missing, then spend the live acceptance.
+- **The suite before the audit:** 780 tests, all passing. After it, **782**.
+- **Two gaps, both closed:**
+  - **The live sump acceptance test did not exist.** `SumpAnswerLiveTests` asks the
+    prototype's question verbatim on the real corpus, through the production path end to end
+    — `CorpusLoader`, the real system prompt, `AnswerService` and `QuoteChecker` — and
+    asserts that Section 175.410 appears, that the corpus prefix was cached, and that every
+    distinct cited span matched. Unlike the item 1 spike, which varies its system prompt to
+    stay cold, it writes and reads the production cache entry.
+  - **`CreditExhausted`** was the one failure kind that can reach the store from a request
+    already sent and was not in the roles-still-alternate theory. Added, making seven rows.
+- **`LiveApi` hardening,** from the adversarial review below:
+  - The run budget is checked against what a call is **expected** to cost rather than against
+    zero, so a run cannot start a $2 answer with $0.10 of budget left.
+  - A request that never completes now counts its input-side usage against the budget, so a
+    stopped or failed answer cannot be paid for twice in one run.
+  - The budget rises to **$4.00**, covering the item 1 spike plus this answer, and the log is
+    `TestResults/live.log` rather than `item1-live.log`.
+
+**Live acceptance: passed, and it reproduces the prototype.** The full live suite (6 tests)
+ran for **$2.55**, against the ~$3.16 estimate.
+
+| | Prototype (2026-09-12) | This app (2026-09-15) |
+|---|---|---|
+| 1-hour prefix written | 199,745 tokens | **199,745 tokens** |
+| Cold sump question | $2.16 and $2.13 | **$2.15** |
+| Output tokens | 5,313 and 6,358 | **6,171** |
+| Elapsed | 55–67 s | **64 s** |
+| Quotes matched | 42 of 42 | **41 of 41** distinct spans, 44 citations |
+| Stop reason | `end_turn` | **`end_turn`** |
+
+The answer names §175.410(a)–(n) and cross-references §175.300(f), 175.420(b), 175.425(h),
+175.630(f), 175.640(a), 175.700(f) and 176.430(b)(6) — the reference answer's provisions.
+19% of it is in blocks with no citation. The carried-over baseline therefore holds: the
+default combination is the prototype's shape, and it behaves as the prototype measured.
+
+**Adversarial review.** One read-only review by a second model (Copilot CLI, `gpt-5.6-luna`)
+of the new live test and the `LiveApi` change. Three findings, all confirmed and fixed.
+1. **High:** the run budget was not a cap on what a run may start — it compared the total
+   spent against the budget and ignored the cost of the call about to be made, and no
+   failed, stopped or timed-out request ever counted at all. Both fixed as above.
+2. **Medium:** `Assert.Empty` over a projection discards the projection, so a failed quote
+   would have reported only that a list was not empty. It is now `Assert.True` carrying the
+   failing quotes, their statuses and their mismatch details into the message.
+3. **Low:** the timeout catch relabeled any `OperationCanceledException` as the 3-minute cap.
+   It now checks that the cap's own token is the one that was cancelled.
+
 ## Plan Review Log
 
 **2026-09-13, subagent review of the first draft.** No critical findings; four high, seven
