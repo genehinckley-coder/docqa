@@ -45,6 +45,13 @@ internal static class Formatting
         return TimeZoneInfo.ConvertTime(time, zone).ToString("HH:mm", CultureInfo.InvariantCulture);
     }
 
+    /// <summary>A date and time in the viewer's zone: <c>2026-09-15 14:27</c>.</summary>
+    public static string Timestamp(DateTimeOffset time, TimeZoneInfo zone)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+        return TimeZoneInfo.ConvertTime(time, zone).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+    }
+
     /// <summary>A model's name without the family prefix: <c>Opus 5</c>.</summary>
     public static string ShortName(SelectableModel model)
     {
