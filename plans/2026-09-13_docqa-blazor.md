@@ -169,7 +169,8 @@ reason less thoroughly.
 - **Opus 5 at `high`:** measured by the prototype.
 - **Every other combination:** an estimate or an assumption, because the output length
   (thinking plus answer) of an effort level is not published for this workload. Every row
-  below says which it is. Item 12 replaces the estimates with measurements.
+  below says which it is. Item 12 would have replaced the estimates with measurements; it was
+  decided against on 2026-09-15, so these bases are final unless it is ever run.
 
 ### Prices, USD per million tokens
 
@@ -1151,7 +1152,22 @@ line count.
 **Risks:** None.
 **Open questions:** None.
 
-### 12. Cost and quality measurement across models and levels *(nice-to-have; needs your go-ahead, about $16–$18.50)*
+### 12. Cost and quality measurement across models and levels *(nice-to-have — NOT RUN)*
+
+> **Decision, 2026-09-15: nice-to-have, and not to be run.** (User decision.) The $16–$18.50
+> is not worth what it buys: the preview's estimates stand, and every row on the Corpus
+> settings screen already shows its own basis — measured, estimate or assumption — so a user
+> is never shown an estimate dressed up as a measurement. Do not run this item, or any part
+> of it, without the user asking for it first.
+>
+> **What stays unmeasured as a result:** every combination but Opus 5 at `high`. The
+> `EstimatedOutputTokens` ranges in `appsettings.json` remain estimates and assumptions, and
+> the **Cost Reference**'s bases stay as written. Nothing else in the app depends on them:
+> they feed the cost preview and nothing more.
+>
+> **If it is ever run,** the method below is unchanged, and the plan's own advice holds — a
+> single run per combination is calibration, not a benchmark.
+
 **Why:** Every **Cost Reference** figure except Opus 5 at `high` is an estimate or an
 assumption. The selector's preview is only honest once they are measured. Measuring also
 shows what the cheaper settings give up on this corpus, which no published curve can.
@@ -1181,9 +1197,8 @@ shows what the cheaper settings give up on this corpus, which no published curve
 numbers the preview shows.
 **Risks:** A single run per combination is noisy, especially at `max`, which the SDK guidance
 calls prone to overthinking. Treat the results as calibration, not a benchmark.
-**Open questions:** Whether to run it at all, given the cost. It could instead run earlier,
-through a short script over the frozen prototype with only its model and effort varied.
-That would inform the defaults sooner, at the same cost.
+**Open questions:** None. "Whether to run it at all, given the cost" was the open question,
+and it is answered above: no.
 
 ## Sequencing
 
@@ -1202,7 +1217,8 @@ That would inform the defaults sooner, at the same cost.
 6. **Items 8, 9 and 10,** which need items 6 and 7.
 7. **Item 11** runs throughout. The manual acceptance session is last among the required
    items.
-8. **Item 12,** only with your go-ahead, after item 11.
+8. ~~**Item 12,** only with your go-ahead, after item 11.~~ **Decided against, 2026-09-15.**
+   Item 11 is therefore the last item, and the plan is complete at it.
 
 ## What We're NOT Doing (and Why)
 
