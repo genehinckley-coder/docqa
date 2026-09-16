@@ -12,7 +12,7 @@ namespace DocQa.Core.Tests.Live;
 /// <summary>
 /// Plan item 1, the request-shape spike, against the real API. Billed (about $1 in all) and skipped
 /// unless <c>DOCQA_LIVE=1</c>. Each response's usage and cost is logged to
-/// <c>TestResults/item1-live.log</c>.
+/// <c>TestResults/live.log</c>.
 /// </summary>
 /// <remarks>
 /// In the non-parallel collection: one test sets process-wide ANTHROPIC_* variables, and the others
