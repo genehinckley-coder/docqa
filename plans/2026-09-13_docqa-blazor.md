@@ -2060,6 +2060,40 @@ of the new live test and the `LiveApi` change. Three findings, all confirmed and
 3. **Low:** the timeout catch relabeled any `OperationCanceledException` as the 3-minute cap.
    It now checks that the cap's own token is the one that was cancelled.
 
+**Manual acceptance session: run in part, and closed by decision.** (User decision,
+2026-09-15: the remaining checks were not worth their cost, and the estimates stand.)
+
+- **Run in the app, on Opus 5 at `high`, against the entry the live test had written:**
+
+  | Check | Cost |
+  |---|---|
+  | First question in the app, reading the corpus entry | **$0.12** |
+  | Refreshing the tab mid-answer; the answer completed and committed | **$0.17** |
+  | Enter and Shift+Enter, and focus through Ask → Stop → Stopping… → Ask | **$0.14** |
+
+- **What the $0.12 proves, and it is the useful result:** the app read the corpus entry that
+  the live test's process wrote. The 1-hour entry is shared across processes, not per client
+  instance, so the cache survives an app restart within its TTL.
+- **Warm answers can cost less than the preview's low end.** The corpus read is a fixed $0.10,
+  so $0.12 is about 800 output tokens and $0.14 about 1,600. The $0.18–$0.30 warm band came
+  from the sump question's 3,200–6,400-token answers, and a short question lands under it. The
+  band is an estimate of this corpus's *typical* answer, not a floor. Item 12 would widen its
+  low end if it ever measures short questions.
+- **Not run, by decision:** the follow-up tail read, the new-conversation read, the stopped
+  turn, and the comparison against the Claude Console's billed usage. The follow-up and
+  new-conversation reads are covered by the prototype's live run ($0.23 and $0.18) and by
+  item 1's live A → B → A check; the stopped turn is covered offline by the Stop tests.
+- **One question stays open, and the Console comparison was the only way to close it:**
+  whether output generated before a Stop is billed. No first-party documentation states it.
+  This changes nothing in the app, which already claims only that Stop ends the wait and
+  never that it saves money, and labels a stopped turn "input billed about $X; output before
+  Stop not reported".
+- **Not a defect, but worth recording:** the app was first started with `--no-launch-profile`,
+  which drops `ASPNETCORE_ENVIRONMENT=Development`. Run as Production against unpublished
+  output, Static Web Assets are off, so `blazor.web.js` and the scoped stylesheet 404: the
+  page renders unstyled and the circuit never starts. That is standard ASP.NET behavior, and
+  `dotnet run` uses the `http` profile, but a Production run needs `dotnet publish` first.
+
 ## Plan Review Log
 
 **2026-09-13, subagent review of the first draft.** No critical findings; four high, seven
