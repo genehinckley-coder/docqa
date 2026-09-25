@@ -108,8 +108,8 @@
                     }
                 </ul>
                 <p class="set__note">
-                    The label is the citation title the model sees. Token counts are approximate: documents counted
-                    separately do not sum to the corpus total.
+                    The label is the citation title the model sees. Token counts are approximate, counted on
+                    @DefaultModelName: documents counted separately do not sum to the corpus total.
                 </p>
             }
             else
@@ -413,6 +413,10 @@
 
     private static string ShortFingerprint(CorpusSnapshot corpus) =>
         corpus.Fingerprint.Length <= 16 ? corpus.Fingerprint : corpus.Fingerprint[..16] + "…";
+
+    // The loader counts each document alone on the default model; the tokenizers differ slightly, so say which.
+    private static string DefaultModelName { get; } =
+        CacheAffecting.SelectableModels.Single(model => model.Id == CacheAffecting.DefaultModelId).DisplayName;
 
     private static string DocumentCounts(CorpusDocument document) =>
         $"{Formatting.Number(document.CharacterCount)} c · "

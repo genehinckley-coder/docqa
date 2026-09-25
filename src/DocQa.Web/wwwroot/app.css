@@ -122,33 +122,33 @@ button.d1-card {
     }
 }
 
-/* The thinking summary streams dimmed under the indicator until the answer's text starts. */
-.qa__thinking-live {
-    max-height: 12em;
-    margin: var(--space-3) 0 0;
-    overflow-y: auto;
-    font-family: var(--font-text);
-    font-size: 15px;
-    font-style: italic;
-    line-height: var(--leading-normal);
-    color: var(--text-subtle);
-    white-space: pre-wrap;
+/* A collapsed area of an answer: its detail, its reasoning, or its sources. */
+.qa__disclosure {
+    margin-top: var(--space-3);
 }
 
-.qa__reasoning {
-    margin-top: var(--space-3);
+.qa__disclosure > summary {
     font-family: var(--font-ui);
     font-size: 12px;
-    color: var(--text-subtle);
-}
-
-.qa__reasoning > summary {
     letter-spacing: var(--tracking-wide);
+    color: var(--text-subtle);
     cursor: pointer;
 }
 
+.qa__disclosure[open] > summary {
+    margin-bottom: var(--space-2);
+}
+
+.qa__detail > summary {
+    color: var(--text-accent);
+}
+
+.qa__disclosure-note {
+    color: var(--text-subtle);
+}
+
 .qa__reasoning-text {
-    margin: var(--space-2) 0 0;
+    margin: 0;
     font-family: var(--font-text);
     font-size: 15px;
     font-style: italic;
@@ -163,6 +163,10 @@ button.d1-card {
     font-size: 14px;
     font-style: italic;
     color: var(--text-subtle);
+}
+
+.qa__reasoning > summary + .qa__reasoning-note {
+    margin-top: 0;
 }
 
 .qa__notice,
@@ -188,6 +192,10 @@ button.d1-card {
     margin-top: var(--space-4);
     padding-top: var(--space-3);
     border-top: var(--border-hairline);
+}
+
+.qa__sources > .qa__disclosure {
+    margin-top: var(--space-1);
 }
 
 .qa__source-list {

@@ -34,8 +34,8 @@ public sealed class CorpusLoader
     /// </summary>
     /// <remarks>
     /// The corpus is counted once on each selectable model, and the guard applies to the largest count.
-    /// Only then is each document counted on its own on the default model, for display; a failure there
-    /// is logged, and those documents show no count.
+    /// Only then is each document counted on its own on <see cref="CacheAffecting.DefaultModelId"/>, for
+    /// display; a failure there is logged, and those documents show no count.
     /// </remarks>
     /// <param name="documents">The extracted documents, in any order.</param>
     /// <param name="ceiling">The largest acceptable token count, inclusive.</param>
@@ -77,8 +77,8 @@ public sealed class CorpusLoader
                 new RequestDocument(document.Label, CacheAffecting.RenderDocumentContext(document.FileName), document.Text)),
         ];
 
-        // Every selectable model. They share a tokenizer today, but a future difference must not slip
-        // past the ceiling.
+        // Every selectable model, since their tokenizers can differ: Opus 5.5 counts a couple of tokens
+        // more than Opus 5 and Sonnet 5. The ceiling applies to the largest count.
         Dictionary<string, long> tokenCounts = new(StringComparer.Ordinal);
         foreach (SelectableModel model in CacheAffecting.SelectableModels)
         {

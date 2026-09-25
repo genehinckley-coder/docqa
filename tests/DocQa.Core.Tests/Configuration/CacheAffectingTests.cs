@@ -12,10 +12,11 @@ namespace DocQa.Core.Tests.Configuration;
 public sealed class CacheAffectingTests
 {
     [Fact]
-    public void SystemPrompt_IsThePrototypesVerbatim() =>
-        // Equal to SYSTEM_PROMPT_SHA256 in the prototype's tests/test_answer.py.
+    public void SystemPrompt_IsPinned() =>
+        // Diverged from the prototype's SYSTEM_PROMPT (tests/test_answer.py) by the addition of the
+        // Summary/Detail answer structure, so this hash is ours, not the prototype's.
         Assert.Equal(
-            "d62477f1e9365fa5d13c21573612a035a15f8763b6466b3cfbb91e7dcf4e32cb",
+            "f64485c3edbb60236e35bf5f931b8023ba0b493d048729dcdad9ce9ba4da80d1",
             Sha256(CacheAffecting.SystemPrompt));
 
     [Fact]
@@ -52,7 +53,7 @@ public sealed class CacheAffectingTests
     [Fact]
     public void SelectableModels_ArePinned() =>
         Assert.Equal(
-            "35bc1e80f1e12849113bb42d72b8331014f08cc35f0d3134ee95e7837d77df7c",
+            "fbdd74271f67c3ade4382e7b327fef2353e306c699ae31f4b6415c33e39cb4b0",
             Sha256(string.Concat(CacheAffecting.SelectableModels.Select(model => $"{model.Id}\n"))));
 
     [Fact]
@@ -71,7 +72,7 @@ public sealed class CacheAffectingTests
     [Fact]
     public void DefaultCombination_IsPinned() =>
         Assert.Equal(
-            "f8e5f56dba18ce0cc8e6fc7a9911e46e83ba1a0fded06b60ed1eaf83f5db5ab8",
+            "d88e139200e3e2089a0df9d3a7816bec2720217adea60f80bea55f24dfd16a7d",
             Sha256($"{CacheAffecting.DefaultModelId}\t{CacheAffecting.DefaultEffort.ToWireValue()}\n"));
 
     [Fact]

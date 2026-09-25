@@ -65,7 +65,17 @@ reason less thoroughly.
   - **Added at item 1:** on a follow-up, an explicit 5-minute breakpoint on the previous
     question, so that the follow-up reads the conversation history instead of rewriting it.
     See item 4.
-    - the same system prompt, document labels and context template, copied verbatim
+    - the same document labels and context template, copied verbatim
+  - **Changed after item 11:** the system prompt, which began as the prototype's copied
+    verbatim, now also requires a two-part answer — a `Summary` heading with a short,
+    uncited executive statement, then a `Detail` heading carrying the full cited analysis.
+    Its pinned hash is therefore ours, not the prototype's. The added text is **174 tokens**,
+    measured on 2026-09-24: the corpus count went from 199,749 to 199,923, and the 1-hour
+    prefix from 199,745 to 199,919. The **Cost Reference** uses the new prefix.
+    - **The fingerprint now covers the system prompt.** It renders before the documents, so
+      it is part of the cached prefix; before, an edit to it left the state file reporting
+      "Unchanged" while every cached corpus copy had gone cold. A state file recorded before
+      this change reports Changed once, which is correct.
   - Now parameters:
     - `model`: `claude-opus-5` or `claude-sonnet-5`
     - `output_config.effort`: `low`, `medium`, `high`, `xhigh` or `max`
@@ -75,6 +85,9 @@ reason less thoroughly.
     measurements therefore carry over as the acceptance baseline: 199,745 tokens in the
     1-hour prefix, $2.16 cold, $0.23 and $0.18 warm. Items 2 and 3 check that parity
     rather than assume it.
+  - **Changed 2026-09-24: the default is now Opus 5.5 at `high`.** The acceptance baseline
+    above stays Opus 5's, and Opus 5 at `high` remains the only combination the cost
+    preview labels measured.
 - **Both models can take the same request.** Sonnet 5 supports document citations, prompt
   caching, adaptive thinking with summarized display, the full five-level effort range, a
   1M context window and 128K output (per the SDK skill's model reference). **Proven at
@@ -87,9 +100,18 @@ reason less thoroughly.
   on each is a cold write. **Confirmed at item 1** on small fixtures: a level change and a
   model change each write a new entry, and the entries coexist rather than replace one
   another.
+  - **Not so on Opus 5.5, observed 2026-09-24.** After a cold write at `high`, the first
+    question at `low` and then at `medium` each *read* the whole corpus (199,937 tokens),
+    with nothing written. Opus 5.5 appears to share one corpus entry across effort levels.
+    The app still keys cache warmth and baselines by model and level, so on Opus 5.5 it
+    predicts a cold write that does not happen: the preview overstates, never understates.
+    Seen once; not yet acted on.
 - **The corpus is 199,749 tokens on both models.** Measured with the free `count_tokens`
   call on 2026-09-13, with the system prompt included; both models use the same tokenizer.
   **Confirmed at item 3** for the C# request, on both models.
+  - **Updated 2026-09-24,** after the Summary/Detail system prompt: 199,923 on Opus 5 and
+    Sonnet 5, and 199,925 on Opus 5.5, whose tokenizer is not quite the same.
+    `CorpusTokenCountLiveTests` pins these three.
   The corpus costs in the **Cost Reference** are therefore exact arithmetic on a measured
   count. Output lengths, tail writes and the question's few dozen tokens are not.
 - **The design is the visual spec, not the data spec.** Its data is placeholder: document
@@ -165,7 +187,10 @@ reason less thoroughly.
 
 **What is measured and what is estimated.**
 - **Prices:** from the pricing page, 2026-09-13.
-- **Corpus token count:** measured on both models the same day.
+- **Corpus token count:** measured on both models the same day, and again on 2026-09-24
+  after the system prompt grew by 174 tokens. The corpus figures below use the new 1-hour
+  prefix of 199,919 tokens: measured on Opus 5.5's cold write, and on Opus 5 and Sonnet 5
+  inferred as their count less 4, the gap measured before.
 - **Opus 5 at `high`:** measured by the prototype.
 - **Every other combination:** an estimate or an assumption, because the output length
   (thinking plus answer) of an effort level is not published for this workload. Every row
@@ -192,15 +217,16 @@ reason less thoroughly.
 
 | | Opus 5 | Sonnet 5 |
 |---|---|---|
-| Cold 1-hour corpus write, on the first question for a model and level, or after an hour without using it | **$2.00** ($1.997) | **$0.80** ($0.799) |
-| Warm corpus read, on every other question | $0.10 ($0.0999) | $0.04 ($0.0399) |
+| Cold 1-hour corpus write, on the first question for a model and level, or after an hour without using it | **$2.00** ($1.999) | **$0.80** ($0.800) |
+| Warm corpus read, on every other question | $0.10 ($0.1000) | $0.04 ($0.0400) |
 | Follow-up tail write, per 1,000 tokens of the previous turn (the 5-minute rate) | $0.00625 | $0.0025 |
 
-That is 199,745 tokens × the 1-hour write price, and × the read price. A follow-up's tail is
-roughly the previous turn's output: turn 2 of the prototype's live run wrote 6,338 tail
-tokens after a 6,358-token answer. Every combination of model and level has its own cold
-write, so trying all ten within an hour costs 5 × $1.997 + 5 × $0.799 = **$13.98** in
-corpus writes alone.
+That is 199,919 tokens × the 1-hour write price, and × the read price. (With the
+prototype's system prompt the prefix was 199,745 tokens, $1.997 and $0.799 cold.) A
+follow-up's tail is roughly the previous turn's output: turn 2 of the prototype's live run
+wrote 6,338 tail tokens after a 6,358-token answer. Every combination of model and level has
+its own cold write, so trying all ten within an hour costs 5 × $1.999 + 5 × $0.800 =
+**$13.99** in corpus writes alone.
 
 ### Output per answer, by effort level
 
@@ -232,13 +258,13 @@ corpus writes alone.
 
 | Model and level | Cold first question | Warm question (first or follow-up) | Basis |
 |---|---|---|---|
-| Opus 5, `low` | $2.02–$2.10 | $0.12–$0.23 | Estimate |
+| Opus 5, `low` | $2.02–$2.11 | $0.12–$0.23 | Estimate |
 | Opus 5, `medium` | $2.04–$2.13 | $0.14–$0.27 | Estimate |
 | **Opus 5, `high`** (default) | **$2.08–$2.16** (measured $2.13 and $2.16) | **$0.18–$0.30** (measured $0.18 and $0.23) | **Measured** |
 | Opus 5, `xhigh` | $2.10–$2.32 | $0.20–$0.50 | Assumption |
 | Opus 5, `max` | $2.12–$2.48 | $0.22–$0.70 | Assumption |
 | Sonnet 5, `low` | $0.81–$0.84 | $0.05–$0.09 | Estimate, plus the Sonnet 5 assumption |
-| Sonnet 5, `medium` | $0.81–$0.85 | $0.06–$0.11 | Estimate, plus the Sonnet 5 assumption |
+| Sonnet 5, `medium` | $0.82–$0.85 | $0.06–$0.11 | Estimate, plus the Sonnet 5 assumption |
 | Sonnet 5, `high` | $0.83–$0.86 | $0.07–$0.12 | Assumption: Opus 5's measured output at Sonnet 5 prices |
 | Sonnet 5, `xhigh` | $0.84–$0.93 | $0.08–$0.20 | Assumption |
 | Sonnet 5, `max` | $0.85–$0.99 | $0.09–$0.28 | Assumption |
@@ -248,6 +274,23 @@ corpus writes alone.
   write, sized to the previous answer.
 - Tail reads on long conversations add a little more at the read price.
 - The question's own few dozen input tokens are left out; they are under $0.001.
+
+**Opus 5.5, added 2026-09-24; `high` is now the default.** Prices $4 input, $5 and $8
+cache writes, $0.20 read and $20 output per million tokens. Measured on 2026-09-24 with the
+sump question and one follow-up, about $4.90 in all:
+
+| Level | Pairs | Output tokens measured | Configured range | Cold question | Warm question |
+|---|---|---|---|---|---|
+| `low` | 1 | 4,643 and 3,053 | 3,000–4,700 | $1.66–$1.69 | $0.10–$0.16 |
+| `medium` | 1 | 6,849 and 4,659 | 4,600–6,900 | $1.69–$1.74 | $0.13–$0.21 |
+| `high` | 3 | 8,226, 7,062, 8,264; follow-ups 5,309, 6,961, 5,466 | 5,300–8,300 | **$1.71–$1.77** (measured $1.74 and $1.76) | **$0.15–$0.25** (measured $0.13–$0.21) |
+
+- The ranges are in `appsettings.json`'s `MeasuredOutputTokens`, so the preview labels
+  these three levels measured. `low` and `medium` rest on one pair each.
+- `xhigh` and `max` still use the Opus 5-derived assumptions above. Opus 5.5 wrote about
+  30% more than Opus 5 at `high`, so they may run low.
+- At the 32,000-token cap: $2.24 cold, or $0.84 for a follow-up.
+- Every answer in these runs had all its quotes matched.
 
 ### Worst case: an answer that runs to its `max_tokens` limit
 
@@ -550,6 +593,8 @@ surprise.
   TTL included. Do not rely on `System.Text.Json`'s property order. The C# fingerprint
   will not equal the Python one, and does not need to. Model and effort are not part of
   the fingerprint; they key the cache baseline instead (item 6).
+  - **Since 2026-09-24 it also covers the system prompt,** hashed ahead of the blocks, since
+    the prompt is part of the cached prefix. See **Assumptions**.
 - **Parity with the assembled request, not just the extracted text.** The carried-over
   baseline also depends on the rendered `title` and `context` strings and on block order.
   - A golden file generated by the same `tools/` script records, per block, the title, the
@@ -565,6 +610,8 @@ surprise.
   because the design's Documents and Settings screens show them. They use the default
   model and are labeled as approximate: documents counted separately do not sum to the
   corpus total. *Nice-to-have: drop them if the rate limit bites.*
+  - **Since 2026-09-24** the default is Opus 5.5, whose tokenizer differs slightly from
+    the others', so the Settings registry note names the model the counts were made on.
 - **Corpus snapshots.** A `Corpus` is immutable. It carries, for each document:
   - its text
   - its code-point index map (item 1)

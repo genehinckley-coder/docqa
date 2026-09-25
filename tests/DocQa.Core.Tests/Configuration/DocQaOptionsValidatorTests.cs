@@ -125,6 +125,37 @@ public sealed class DocQaOptionsValidatorTests
     }
 
     [Fact]
+    public void AMeasuredRange_ForAModelThatIsNotSelectable_Fails()
+    {
+        DocQaOptions options = TestSettings.ValidOptions();
+        options.MeasuredOutputTokens["claude-opus-9"] = new() { [EffortLevel.High] = new OutputTokenRange { Lowest = 1, Highest = 2 } };
+
+        AssertFailsMentioning(options, "MeasuredOutputTokens names 'claude-opus-9', which is not a selectable model");
+    }
+
+    [Fact]
+    public void AnInvertedMeasuredRange_Fails()
+    {
+        DocQaOptions options = TestSettings.ValidOptions();
+        options.MeasuredOutputTokens[ModelIds.ClaudeOpus55] = new() { [EffortLevel.High] = new OutputTokenRange { Lowest = 8_300, Highest = 5_300 } };
+
+        AssertFailsMentioning(options, $"MeasuredOutputTokens:{ModelIds.ClaudeOpus55}:High");
+    }
+
+    [Fact]
+    public void NullMeasuredEntries_FailOrAreIgnored_InsteadOfThrowing()
+    {
+        DocQaOptions options = TestSettings.ValidOptions();
+        options.MeasuredOutputTokens[ModelIds.ClaudeOpus5] = null!;
+        options.MeasuredOutputTokens[ModelIds.ClaudeOpus55] = new() { [EffortLevel.High] = null! };
+
+        AssertFailsMentioning(options, $"MeasuredOutputTokens:{ModelIds.ClaudeOpus55}:High must have 1 <= Lowest <= Highest, but is missing.");
+
+        options.MeasuredOutputTokens = null!;
+        Assert.True(_validator.Validate(null, options).Succeeded);
+    }
+
+    [Fact]
     public void ANullPriceRow_FailsInsteadOfThrowing()
     {
         DocQaOptions options = TestSettings.ValidOptions();

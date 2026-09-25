@@ -28,7 +28,7 @@ public sealed class SettingsBarTests : IDisposable
         string previewId = cut.Find(".settings__preview").Id!;
         Assert.All(selects, select => Assert.Contains(previewId, select.GetAttribute("aria-describedby")!, StringComparison.Ordinal));
 
-        Assert.Equal(["Claude Opus 5", "Claude Sonnet 5"], selects[0].QuerySelectorAll("option").Select(option => option.TextContent));
+        Assert.Equal(["Claude Opus 5", "Claude Opus 5.5", "Claude Sonnet 5"], selects[0].QuerySelectorAll("option").Select(option => option.TextContent));
         Assert.Equal(["Low", "Medium", "High", "Extra high", "Max"], selects[1].QuerySelectorAll("option").Select(option => option.TextContent));
         Assert.Equal("High", selects[1].QuerySelector("option[selected]")!.TextContent);
     }
@@ -44,7 +44,7 @@ public sealed class SettingsBarTests : IDisposable
         cut.FindAll("select")[0].Change(ModelIds.ClaudeSonnet5);
         cut.FindAll("select")[1].Change(nameof(EffortLevel.XHigh));
 
-        Assert.Equal([TestData.Sonnet(EffortLevel.High), AnswerSettings.Create(ModelIds.ClaudeOpus5, EffortLevel.XHigh)], changes);
+        Assert.Equal([TestData.Sonnet(EffortLevel.High), AnswerSettings.Create(ModelIds.ClaudeOpus55, EffortLevel.XHigh)], changes);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class SettingsBarTests : IDisposable
             .Add(x => x.Settings, AnswerSettings.Default)
             .Add(x => x.Excluded, [new ExcludedCombination(ModelIds.ClaudeSonnet5, EffortLevel.High, "Rejected by the spike")]));
 
-        IElement sonnet = cut.FindAll("select")[0].QuerySelectorAll("option")[1];
+        IElement sonnet = cut.FindAll("select")[0].QuerySelectorAll("option")[2];
         Assert.True(sonnet.HasAttribute("disabled"));
         Assert.Contains("Rejected by the spike", sonnet.TextContent, StringComparison.Ordinal);
         Assert.All(cut.FindAll("select")[1].QuerySelectorAll("option"), option => Assert.False(option.HasAttribute("disabled")));

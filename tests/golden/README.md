@@ -19,10 +19,10 @@ title, context, citation setting, the 1-hour breakpoint on the last block only, 
 length in code points and SHA-256.
 
 It also records `prototype_tokens`, the prototype's `count_tokens` total for exactly these blocks
-(system prompt, blocks and a `"?"` question, on `claude-opus-5`). The live
-`CorpusTokenCountLiveTests` requires DocQA's request to count the same on every selectable model.
-The script copies the total from the prototype's `.notrag_state.json`, and refuses to unless
-that file's fingerprint is the fingerprint of these blocks.
+(system prompt, blocks and a `"?"` question, on `claude-opus-5`). The script copies the total
+from the prototype's `.notrag_state.json`, and refuses to unless that file's fingerprint is the
+fingerprint of these blocks. It is a historical record: DocQA's system prompt has since diverged
+from the prototype's, so the live `CorpusTokenCountLiveTests` pins DocQA's own totals instead.
 
 ## Regenerating
 

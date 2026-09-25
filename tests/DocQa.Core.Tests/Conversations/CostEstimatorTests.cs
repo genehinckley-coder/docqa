@@ -39,6 +39,9 @@ public sealed class CostEstimatorTests
             _options.MaxTokens[level] = 16_000 * (i + 1);
         }
 
+        _options.MeasuredOutputTokens[ModelIds.ClaudeOpus5] = new() { [EffortLevel.High] = new OutputTokenRange { Lowest = 3_100, Highest = 6_300 } };
+        _options.MeasuredOutputTokens[ModelIds.ClaudeOpus55] = new() { [EffortLevel.High] = new OutputTokenRange { Lowest = 5_300, Highest = 8_300 } };
+
         _estimator = new CostEstimator(Options.Create(_options));
     }
 
@@ -62,7 +65,8 @@ public sealed class CostEstimatorTests
     {
         AnswerSettings settings = AnswerSettings.Create(modelId, effort);
         ModelPrices prices = _options.Prices[modelId];
-        OutputTokenRange output = _options.EstimatedOutputTokens[effort];
+        OutputTokenRange output = _options.MeasuredOutputTokens.GetValueOrDefault(modelId)?.GetValueOrDefault(effort)
+            ?? _options.EstimatedOutputTokens[effort];
         int limit = _options.MaxTokens[effort];
         decimal PerMillion(long tokens, decimal price) => tokens * price / 1_000_000m;
 
@@ -103,17 +107,29 @@ public sealed class CostEstimatorTests
 
     [Theory]
     [InlineData(ModelIds.ClaudeOpus5, EffortLevel.High, EstimateBasis.Measured)]
+    [InlineData(ModelIds.ClaudeOpus55, EffortLevel.High, EstimateBasis.Measured)]
     [InlineData(ModelIds.ClaudeOpus5, EffortLevel.Low, EstimateBasis.Estimate)]
+    [InlineData(ModelIds.ClaudeOpus55, EffortLevel.Medium, EstimateBasis.Estimate)]
     [InlineData(ModelIds.ClaudeSonnet5, EffortLevel.Medium, EstimateBasis.Estimate)]
     [InlineData(ModelIds.ClaudeSonnet5, EffortLevel.High, EstimateBasis.Assumption)]
     [InlineData(ModelIds.ClaudeOpus5, EffortLevel.XHigh, EstimateBasis.Assumption)]
-    [InlineData(ModelIds.ClaudeOpus5, EffortLevel.Max, EstimateBasis.Assumption)]
-    public void OnlyOpusAtHigh_IsMeasured(string modelId, EffortLevel effort, EstimateBasis expected)
+    [InlineData(ModelIds.ClaudeOpus55, EffortLevel.Max, EstimateBasis.Assumption)]
+    public void OnlyTheConfiguredMeasurements_AreMeasured(string modelId, EffortLevel effort, EstimateBasis expected)
     {
         CostEstimate estimate = _estimator.Estimate(AnswerSettings.Create(modelId, effort), CorpusTokens);
 
         Assert.Equal(expected, estimate.Basis);
         Assert.Equal(expected == EstimateBasis.Measured, estimate.IsMeasured);
+    }
+
+    [Fact]
+    public void WithNoMeasurements_NothingIsMeasured()
+    {
+        _options.MeasuredOutputTokens.Clear();
+
+        IEnumerable<AnswerSettings> combinations = CacheAffecting.SelectableModels
+            .SelectMany(model => CacheAffecting.EffortLevels.Select(level => AnswerSettings.Create(model.Id, level)));
+        Assert.All(combinations, settings => Assert.NotEqual(EstimateBasis.Measured, _estimator.BasisOf(settings)));
     }
 
     [Fact]

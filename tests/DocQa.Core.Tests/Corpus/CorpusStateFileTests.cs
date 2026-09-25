@@ -82,6 +82,7 @@ public sealed class CorpusStateFileTests : IDisposable
             [
                 "b.htm: text changed (11 -> 20 characters)",
                 "tokens on claude-opus-5: 1,000 -> 1,005",
+                "tokens on claude-opus-5-5: 1,000 -> 1,005",
                 "tokens on claude-sonnet-5: 1,000 -> 1,005",
             ],
             check.Details);
@@ -114,8 +115,8 @@ public sealed class CorpusStateFileTests : IDisposable
     [Fact]
     public async Task ABlockSettingChange_IsReported_WhenNoDocumentChanged()
     {
-        // Stands in for an edit to the context template or the TTL: the documents are the same, but the
-        // recorded fingerprint is not this corpus's.
+        // Stands in for an edit to the system prompt, the context template or the TTL: the documents are the
+        // same, but the recorded fingerprint is not this corpus's.
         DocQa.Core.Corpus.Corpus corpus = await Corpora.OfAsync(Alpha);
         CorpusStateFile.Record(corpus, StatePath, Parser, RecordedAt);
         EditState(state => state["fingerprint"] = new string('0', 64));
@@ -123,7 +124,7 @@ public sealed class CorpusStateFileTests : IDisposable
         FingerprintCheck check = CorpusStateFile.Compare(corpus, StatePath, Parser);
 
         Assert.Equal(FingerprintStatus.Changed, check.Status);
-        Assert.StartsWith("no document's text or label changed, so a block setting did", check.Details[0], StringComparison.Ordinal);
+        Assert.StartsWith("no document's text or label changed, so the system prompt or a block setting did", check.Details[0], StringComparison.Ordinal);
     }
 
     [Fact]

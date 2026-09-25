@@ -157,7 +157,8 @@ public sealed class CorpusLoaderTests
         var counter = new FakeTokenCounter(call => call.Number switch
         {
             _ when call.IsCorpusCount => 1_000,
-            3 => 11,
+            // The first per-document count follows one corpus count per model.
+            _ when call.Number == CacheAffecting.SelectableModels.Count + 1 => 11,
             _ => throw new HttpRequestException("rate limited"),
         });
 
@@ -247,18 +248,31 @@ public sealed class CorpusLoaderTests
     }
 
     [Fact]
-    public void TheFingerprint_IsTheHashOfTheCanonicalBlocks()
+    public void TheFingerprint_IsTheHashOfTheSystemPromptAndTheCanonicalBlocks()
     {
         RequestDocument[] documents = [new("Part A", "Source file: a.htm", "Alpha.")];
+        const string Blocks =
+            """[{"type":"document","source":{"type":"text","media_type":"text/plain","data":"Alpha."},"title":"Part A","context":"Source file: a.htm","citations":{"enabled":true},"cache_control":{"type":"ephemeral","ttl":"1h"}}]""";
 
-        string canonical = System.Text.Encoding.UTF8.GetString(CorpusFingerprint.CanonicalJson(documents));
-
+        Assert.Equal(Blocks, System.Text.Encoding.UTF8.GetString(CorpusFingerprint.CanonicalJson(documents)));
         Assert.Equal(
-            """[{"type":"document","source":{"type":"text","media_type":"text/plain","data":"Alpha."},"title":"Part A","context":"Source file: a.htm","citations":{"enabled":true},"cache_control":{"type":"ephemeral","ttl":"1h"}}]""",
-            canonical);
+            $$"""{"system":"Answer.","documents":{{Blocks}}}""",
+            System.Text.Encoding.UTF8.GetString(CorpusFingerprint.CanonicalPrefixJson("Answer.", documents)));
         Assert.Equal(
-            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(CorpusFingerprint.CanonicalJson(documents))),
+            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+                CorpusFingerprint.CanonicalPrefixJson(CacheAffecting.SystemPrompt, documents))),
             CorpusFingerprint.Compute(documents));
+    }
+
+    [Fact]
+    public void AChangeToTheSystemPrompt_ChangesTheFingerprint()
+    {
+        // The system prompt renders before the documents, so editing it invalidates every cached corpus copy.
+        RequestDocument[] documents = [new("Part A", "Source file: a.htm", "Alpha.")];
+
+        Assert.NotEqual(
+            CorpusFingerprint.Compute(CacheAffecting.SystemPrompt, documents),
+            CorpusFingerprint.Compute($"{CacheAffecting.SystemPrompt} ", documents));
     }
 
     private static CorpusLoader Loader(FakeTokenCounter counter) => new(counter, NullLogger<CorpusLoader>.Instance);

@@ -259,8 +259,9 @@ public static class CorpusStateFile
         if (changes.Count == 0)
         {
             changes.Add(
-                "no document's text or label changed, so a block setting did (CacheAffecting.DocumentContextTemplate, " +
-                "CacheAffecting.CorpusCacheTtl, or the block shape in MessageRequestBuilder and CorpusFingerprint)");
+                "no document's text or label changed, so the system prompt or a block setting did " +
+                "(CacheAffecting.SystemPrompt, CacheAffecting.DocumentContextTemplate, CacheAffecting.CorpusCacheTtl, " +
+                "or the block shape in MessageRequestBuilder and CorpusFingerprint)");
         }
 
         if (previous.ParserVersion != parserVersion)

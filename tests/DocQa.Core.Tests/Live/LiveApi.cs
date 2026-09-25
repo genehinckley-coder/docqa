@@ -22,6 +22,9 @@ internal static class LiveApi
     private static readonly Dictionary<string, long> MinimumCacheablePrefix = new(StringComparer.Ordinal)
     {
         [ModelIds.ClaudeOpus5] = 512,
+
+        // Not yet published; assumed equal to Opus 5, whose feature set it shares.
+        [ModelIds.ClaudeOpus55] = 512,
         [ModelIds.ClaudeSonnet5] = 1_024,
     };
 

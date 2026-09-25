@@ -80,12 +80,13 @@
                 @{
                     int disclaimerAt = DisclaimerIndex(active);
                     string baseUri = BaseUri;
+                    string fragment = Fragment;
                 }
                 @for (int i = 0; i < active.Answers.Count; i++)
                 {
                     int index = i;
                     <AnswerView @key="index" Record="active.Answers[index]" Index="index" ShowDisclaimer="index == disclaimerAt" BaseUri="@baseUri"
-                                ConversationId="active.Id" />
+                                ConversationId="active.Id" OpenSources="fragment.StartsWith(AnswerView.SourceIdPrefix(index), StringComparison.Ordinal)" />
                 }
 
                 @if (active.InProgress is { } progress)
@@ -124,7 +125,7 @@
     private static readonly string[] Suggestions =
     [
         "What are the sump requirements for a UST in Illinois?",
-        "How often must release detection results be kept on file?",
+        "How long must release detection results be kept on file?",
     ];
 
     private readonly Lock _gate = new();
@@ -153,6 +154,9 @@
     private CorpusSnapshot? ReadyCorpus => (_corpusState as CorpusState.Ready)?.Corpus;
 
     private string BaseUri => Navigation.Uri.Split('#')[0];
+
+    // The element the address points at, such as a source row the Documents screen links back to; empty for none.
+    private string Fragment => Navigation.Uri.IndexOf('#') is var hash and >= 0 ? Navigation.Uri[(hash + 1)..] : "";
 
     private bool CanAsk =>
         _active is { IsAnswering: false } active && CorpusBlocker(active) is null && !string.IsNullOrWhiteSpace(_draft);

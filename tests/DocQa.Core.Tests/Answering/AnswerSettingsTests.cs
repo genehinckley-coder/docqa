@@ -6,11 +6,11 @@ namespace DocQa.Core.Tests.Answering;
 public sealed class AnswerSettingsTests
 {
     [Fact]
-    public void TheDefault_IsThePrototypesShape_Opus5AtHigh()
+    public void TheDefault_IsOpus55AtHigh()
     {
-        Assert.Equal(ModelIds.ClaudeOpus5, AnswerSettings.Default.ModelId);
+        Assert.Equal(ModelIds.ClaudeOpus55, AnswerSettings.Default.ModelId);
         Assert.Equal(EffortLevel.High, AnswerSettings.Default.Effort);
-        Assert.Equal("Claude Opus 5, High", AnswerSettings.Default.ToString());
+        Assert.Equal("Claude Opus 5.5, High", AnswerSettings.Default.ToString());
     }
 
     [Fact]
