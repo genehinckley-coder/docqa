@@ -8,14 +8,15 @@
     <p id="@QuestionId" class="qa__question">@Answer.Question</p>
 
     <div class="qa__eyebrow qa__eyebrow--answer">Answer</div>
-    @if (Answer.HasText)
+    @if (Answer.HasText && AnswerSections.Split(Answer.Segments) is { HasSummaryText: true } sections)
     {
-        <AnswerText Segments="Answer.Segments" />
-        @if (Answer.Thinking.Length > 0)
+        <AnswerText Segments="sections.Summary" />
+        @if (sections.Detail.Count > 0)
         {
-            <details class="qa__reasoning">
-                <summary>Reasoning summary so far</summary>
-                <p class="qa__reasoning-text">@Answer.Thinking</p>
+            @* Collapsed like a finished answer's; the label says it is still being written. *@
+            <details class="qa__disclosure qa__detail">
+                <summary>Detail <span class="qa__disclosure-note">· writing…</span></summary>
+                <AnswerText Segments="sections.Detail" />
             </details>
         }
     }
@@ -25,16 +26,10 @@
             <span>Assembling answer from documents</span>
             <span class="qa__dots" aria-hidden="true"><span></span><span></span><span></span></span>
         </div>
-        @* The summary streams dimmed while there is no text yet, so a long answer shows progress. *@
-        @if (Answer.Thinking.Length > 0)
-        {
-            <p class="qa__thinking-live">@Answer.Thinking</p>
-        }
-        @if (Answer.HasRedactedThinking)
-        {
-            <p class="qa__reasoning-note">Part of the reasoning is redacted and cannot be shown.</p>
-        }
     }
+
+    @* The reasoning so far, collapsed; once opened, it keeps growing as it streams. *@
+    <ReasoningSummary Thinking="@Answer.Thinking" HasRedactedThinking="Answer.HasRedactedThinking" InProgress="true" />
 
     @if (Answer.IsStopping)
     {
@@ -46,7 +41,6 @@
 
 @code {
     private const string QuestionId = "answer-live-question";
-
     /// <summary>The answer so far.</summary>
     [Parameter, EditorRequired]
     public InProgressAnswer Answer { get; set; } = null!;

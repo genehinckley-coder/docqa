@@ -178,6 +178,20 @@ public sealed class CorpusSettingsPageTests : IDisposable
         Assert.Empty(cut.FindAll("select"));
     }
 
+    [Fact]
+    public void TheRegistryNote_NamesTheModelTheDocumentsWereCountedOn()
+    {
+        // The loader counts each document on the default model, and the tokenizers differ slightly.
+        string modelName = CacheAffecting.SelectableModels.Single(model => model.Id == CacheAffecting.DefaultModelId).DisplayName;
+
+        IRenderedComponent<CorpusSettings> cut = _context.Render<CorpusSettings>();
+
+        Assert.Contains(
+            $"Token counts are approximate, counted on {modelName}:",
+            System.Text.RegularExpressions.Regex.Replace(cut.Find(".set__card--registry .set__note").TextContent, @"\s+", " "),
+            StringComparison.Ordinal);
+    }
+
     // --- Cache and pricing --------------------------------------------------------------------------
 
     [Fact]
@@ -219,9 +233,9 @@ public sealed class CorpusSettingsPageTests : IDisposable
         IReadOnlyList<IElement> rows = Rows(cut, "per-question-heading");
         Assert.Equal(CacheAffecting.SelectableModels.Count * CacheAffecting.EffortLevels.Count, rows.Count);
 
-        // Opus 5 at High, the only measured combination, recomputed here from the options themselves.
+        // Opus 5 at High, a measured combination, recomputed here from the options themselves.
         ModelPrices prices = _options.Prices[ModelIds.ClaudeOpus5];
-        OutputTokenRange output = _options.EstimatedOutputTokens[EffortLevel.High];
+        OutputTokenRange output = _options.MeasuredOutputTokens[ModelIds.ClaudeOpus5][EffortLevel.High];
         decimal write = TestData.Tokens * prices.CacheWrite1hPerMTok / PerMillion;
         decimal read = TestData.Tokens * prices.CacheReadPerMTok / PerMillion;
         decimal tail = output.Highest * prices.CacheWrite5mPerMTok / PerMillion;
@@ -245,7 +259,11 @@ public sealed class CorpusSettingsPageTests : IDisposable
         IEnumerable<string> bases = Rows(cut, "per-question-heading")
             .Select(row => row.QuerySelectorAll("td")[2].TextContent);
         Assert.Equal(
-            ["Estimate", "Estimate", "Measured", "Assumption", "Assumption", "Estimate", "Estimate", "Assumption", "Assumption", "Assumption"],
+            [
+                "Estimate", "Estimate", "Measured", "Assumption", "Assumption",
+                "Measured", "Measured", "Measured", "Assumption", "Assumption",
+                "Estimate", "Estimate", "Assumption", "Assumption", "Assumption",
+            ],
             bases);
     }
 
@@ -273,7 +291,8 @@ public sealed class CorpusSettingsPageTests : IDisposable
     [Fact]
     public void TheCacheColumn_ReadsTheWarmthTracker_AndTurnsColdWhenTheEntryExpires()
     {
-        AnswerSettings settings = AnswerSettings.Default;
+        // Opus 5, whose rows come first, so CacheCell reads them.
+        AnswerSettings settings = AnswerSettings.Create(ModelIds.ClaudeOpus5, EffortLevel.High);
         _warmth.RecordUsage(CorpusCacheKey.For(TestData.Corpus, settings), new TokenUsage(0, TestData.Tokens, 0, 0, 0));
 
         IRenderedComponent<CorpusSettings> cut = _context.Render<CorpusSettings>();
@@ -289,7 +308,7 @@ public sealed class CorpusSettingsPageTests : IDisposable
     [Fact]
     public void ACombinationAnotherConversationIsWriting_SaysSo_SoASecondWriteIsNotPaidFor()
     {
-        _warmth.BeginRequest(CorpusCacheKey.For(TestData.Corpus, AnswerSettings.Default));
+        _warmth.BeginRequest(CorpusCacheKey.For(TestData.Corpus, AnswerSettings.Create(ModelIds.ClaudeOpus5, EffortLevel.High)));
 
         IRenderedComponent<CorpusSettings> cut = _context.Render<CorpusSettings>();
 

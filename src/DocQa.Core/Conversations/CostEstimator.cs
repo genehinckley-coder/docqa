@@ -8,7 +8,7 @@ namespace DocQa.Core.Conversations;
 /// <summary>Where a cost estimate's output figures come from, as the plan's Cost Reference labels them.</summary>
 public enum EstimateBasis
 {
-    /// <summary>Measured by the prototype: Opus 5 at <c>high</c>.</summary>
+    /// <summary>Measured on the combination itself: an entry in <see cref="DocQaOptions.MeasuredOutputTokens"/>.</summary>
     Measured,
 
     /// <summary>An estimate derived from published effort curves: <c>low</c> and <c>medium</c>.</summary>
@@ -59,9 +59,9 @@ public sealed record CostEstimate(
 /// turn stopped before its usage arrived.
 /// </summary>
 /// <remarks>
-/// Every figure follows from <see cref="DocQaOptions.Prices"/>, <see cref="DocQaOptions.MaxTokens"/> and
-/// <see cref="DocQaOptions.EstimatedOutputTokens"/>, so plan item 12's measurements change the preview by
-/// changing configuration only. The question's own few dozen tokens are left out, as in the Cost Reference.
+/// Every figure follows from <see cref="DocQaOptions.Prices"/>, <see cref="DocQaOptions.MaxTokens"/>,
+/// <see cref="DocQaOptions.MeasuredOutputTokens"/> and <see cref="DocQaOptions.EstimatedOutputTokens"/>, so a new
+/// measurement changes the preview by changing configuration only. The question's own few dozen tokens are left out, as in the Cost Reference.
 /// </remarks>
 public sealed class CostEstimator
 {
@@ -78,20 +78,17 @@ public sealed class CostEstimator
     }
 
     /// <summary>
-    /// The basis of a combination's output figures: only Opus 5 at <c>high</c> is measured; <c>low</c> and
-    /// <c>medium</c> are estimates; everything else is an assumption.
+    /// The basis of a combination's output figures: measured where <see cref="DocQaOptions.MeasuredOutputTokens"/>
+    /// has a range for it; otherwise <c>low</c> and <c>medium</c> are estimates and everything else is an assumption.
     /// </summary>
     /// <param name="settings">The model and level.</param>
     /// <returns>The basis.</returns>
-    public static EstimateBasis BasisOf(AnswerSettings settings)
+    public EstimateBasis BasisOf(AnswerSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        return settings switch
-        {
-            { ModelId: ModelIds.ClaudeOpus5, Effort: EffortLevel.High } => EstimateBasis.Measured,
-            { Effort: EffortLevel.Low or EffortLevel.Medium } => EstimateBasis.Estimate,
-            _ => EstimateBasis.Assumption,
-        };
+        return MeasuredRange(settings) is not null
+            ? EstimateBasis.Measured
+            : settings.Effort is EffortLevel.Low or EffortLevel.Medium ? EstimateBasis.Estimate : EstimateBasis.Assumption;
     }
 
     /// <summary>The estimate for a question about <paramref name="corpus"/>.</summary>
@@ -119,7 +116,7 @@ public sealed class CostEstimator
         ArgumentOutOfRangeException.ThrowIfNegative(corpusTokens);
 
         ModelPrices prices = _options.Prices[settings.ModelId];
-        OutputTokenRange output = _options.EstimatedOutputTokens[settings.Effort];
+        OutputTokenRange output = MeasuredRange(settings) ?? _options.EstimatedOutputTokens[settings.Effort];
         int limit = _options.MaxTokens[settings.Effort];
 
         decimal coldInput = Price(corpusTokens, prices.CacheWrite1hPerMTok);
@@ -140,6 +137,9 @@ public sealed class CostEstimator
             warmInput + Tail(limit) + Output(limit),
             limit);
     }
+
+    private OutputTokenRange? MeasuredRange(AnswerSettings settings) =>
+        _options.MeasuredOutputTokens?.GetValueOrDefault(settings.ModelId)?.GetValueOrDefault(settings.Effort);
 
     private static decimal Price(long tokens, decimal perMillion) => tokens * perMillion / TokensPerMillion;
 }

@@ -77,6 +77,26 @@ public sealed class DocQaOptionsValidator : IValidateOptions<DocQaOptions>
             }
         }
 
+        foreach ((string modelId, Dictionary<EffortLevel, OutputTokenRange>? measuredByLevel) in options.MeasuredOutputTokens ?? [])
+        {
+            // A measurement of a model that cannot be selected is a typo or a leftover, never used.
+            if (!CacheAffecting.SelectableModels.Any(model => model.Id == modelId))
+            {
+                failures.Add($"{section}:MeasuredOutputTokens names '{modelId}', which is not a selectable model.");
+                continue;
+            }
+
+            foreach ((EffortLevel level, OutputTokenRange? range) in measuredByLevel ?? [])
+            {
+                if (range is null || range.Lowest < 1 || range.Lowest > range.Highest)
+                {
+                    failures.Add(
+                        $"{section}:MeasuredOutputTokens:{modelId}:{level} must have 1 <= Lowest <= Highest, " +
+                        (range is null ? "but is missing." : $"but is {range.Lowest:N0} to {range.Highest:N0}."));
+                }
+            }
+        }
+
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 

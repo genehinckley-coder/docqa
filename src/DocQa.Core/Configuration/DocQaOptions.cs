@@ -71,4 +71,11 @@ public sealed class DocQaOptions
     /// model and level selector's cost preview.
     /// </summary>
     public Dictionary<EffortLevel, OutputTokenRange> EstimatedOutputTokens { get; set; } = [];
+
+    /// <summary>
+    /// Output ranges measured on particular combinations, keyed by model id and then effort level. Each replaces
+    /// <see cref="EstimatedOutputTokens"/> for its own combination, whose cost figures are then labeled measured.
+    /// Used only for the cost preview.
+    /// </summary>
+    public Dictionary<string, Dictionary<EffortLevel, OutputTokenRange>> MeasuredOutputTokens { get; set; } = new(StringComparer.Ordinal);
 }

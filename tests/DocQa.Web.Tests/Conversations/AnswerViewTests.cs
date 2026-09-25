@@ -121,7 +121,7 @@ public sealed class AnswerViewTests : IDisposable
         AnswerRecord record = TestData.Completed();
 
         Assert.Equal(
-            $"Opus 5, High · {Formatting.Money(record.Result!.Cost.Total)} · cold cache write · 58 s · 199,777 input and 5,313 output tokens",
+            $"Opus 5.5, High · {Formatting.Money(record.Result!.Cost.Total)} · cold cache write · 58 s · 199,777 input and 5,313 output tokens",
             Render(record).Find(".qa__meta").TextContent);
     }
 
@@ -134,7 +134,7 @@ public sealed class AnswerViewTests : IDisposable
         IElement notice = cut.Find(".qa__notice");
         Assert.Equal("STOPPED", notice.QuerySelector(".d1-badge")!.TextContent.Trim());
         Assert.Contains("Stopped: not checked, not added to the conversation.", notice.TextContent, StringComparison.Ordinal);
-        Assert.Equal("Opus 5, High · Input billed about $2.00; output before Stop not reported.", cut.Find(".qa__meta").TextContent);
+        Assert.Equal("Opus 5.5, High · Input billed about $2.00; output before Stop not reported.", cut.Find(".qa__meta").TextContent);
         Assert.Empty(cut.FindAll(".qa__sources"));
     }
 
@@ -165,7 +165,7 @@ public sealed class AnswerViewTests : IDisposable
     }
 
     [Fact]
-    public void TheThinkingSummary_IsCollapsedIntoADisclosure()
+    public void TheThinkingSummary_IsCollapsedIntoItsOwnArea()
     {
         IRenderedComponent<AnswerView> cut = Render(TestData.Completed(thinking: "Section 175.410 applies."));
 
@@ -173,6 +173,94 @@ public sealed class AnswerViewTests : IDisposable
         Assert.False(details.HasAttribute("open"));
         Assert.Equal("Reasoning summary", details.QuerySelector("summary")!.TextContent);
         Assert.Equal("Section 175.410 applies.", details.QuerySelector(".qa__reasoning-text")!.TextContent);
+        Assert.Null(details.QuerySelector(".qa__reasoning-note"));
+    }
+
+    [Fact]
+    public void RedactedThinking_IsNotedInTheReasoningArea()
+    {
+        AnswerRecord record = TestData.Completed() with { HasRedactedThinking = true };
+
+        IElement details = Render(record).Find("details.qa__reasoning");
+
+        Assert.Null(details.QuerySelector(".qa__reasoning-text"));
+        Assert.Equal("Part of the reasoning was redacted and cannot be shown.", details.QuerySelector(".qa__reasoning-note")!.TextContent);
+    }
+
+    [Fact]
+    public void WithoutThinking_TheReasoningAreaIsStillShown_AndSaysThereWasNone()
+    {
+        IElement details = Render(TestData.Completed()).Find("details.qa__reasoning");
+
+        Assert.Equal("Reasoning summary", details.QuerySelector("summary")!.TextContent);
+        Assert.Null(details.QuerySelector(".qa__reasoning-text"));
+        Assert.Equal(
+            "No reasoning was recorded for this answer: the model answered without thinking first.",
+            details.QuerySelector(".qa__reasoning-note")!.TextContent);
+    }
+
+    // --- The answer's areas --------------------------------------------------------------------------
+
+    [Fact]
+    public void AStructuredAnswer_ShowsItsSummary_AndItsDetailCollapsed()
+    {
+        AnswerRecord record = TestData.Completed() with
+        {
+            Segments =
+            [
+                new AnswerSegment("Summary\nA sump must hold 5 gallons.\n\nDetail\n", []),
+                new AnswerSegment("Section 175.410(b)(2) sets the minimum.", [1]),
+            ],
+        };
+
+        IRenderedComponent<AnswerView> cut = Render(record);
+
+        IElement summary = cut.Find("article > .answer-text");
+        Assert.Equal("A sump must hold 5 gallons.", summary.TextContent.Trim());
+        IElement detail = cut.Find("details.qa__detail");
+        Assert.False(detail.HasAttribute("open"));
+        Assert.Equal("Detail", detail.QuerySelector("summary")!.TextContent);
+        Assert.Equal("Section 175.410(b)(2) sets the minimum.[1]", detail.QuerySelector(".answer-text")!.TextContent.Trim());
+        Assert.Equal(BaseUri + "#answer-0-source-1", detail.QuerySelector("a.answer-text__marker")!.GetAttribute("href"));
+    }
+
+    [Fact]
+    public void AnAnswerWithoutHeadings_IsShownWhole_WithNoDetail()
+    {
+        IRenderedComponent<AnswerView> cut = Render(TestData.Completed());
+
+        Assert.Equal($"{TestData.AnswerText}[1]", cut.Find(".answer-text").TextContent.Trim());
+        Assert.Empty(cut.FindAll(".qa__detail"));
+    }
+
+    [Fact]
+    public void TheSources_AreCollapsed_UnderTheirQuoteCount()
+    {
+        IElement details = Render(TestData.Completed()).Find(".qa__sources details");
+
+        Assert.False(details.HasAttribute("open"));
+        Assert.Equal("1 of 1 quotes matched; 0% of the answer's text cites nothing.", details.QuerySelector("summary")!.TextContent);
+        Assert.NotNull(details.QuerySelector(".qa__source-list"));
+    }
+
+    [Fact]
+    public void TheSources_StartOpen_WhenTheAddressNamesOne()
+    {
+        IRenderedComponent<AnswerView> cut = Render(TestData.Completed(), openSources: true);
+
+        Assert.True(cut.Find(".qa__sources details").HasAttribute("open"));
+    }
+
+    [Fact]
+    public void OpenedSources_StayOpen_WhenTheAddressMovesOn_ButAnotherRecordStartsCollapsed()
+    {
+        IRenderedComponent<AnswerView> cut = Render(TestData.Completed(), openSources: true);
+
+        cut.Render(p => p.Add(x => x.OpenSources, false));
+        Assert.True(cut.Find(".qa__sources details").HasAttribute("open"));
+
+        cut.Render(p => p.Add(x => x.Record, TestData.Completed(question: "And after?")));
+        Assert.False(cut.Find(".qa__sources details").HasAttribute("open"));
     }
 
     [Fact]
@@ -223,11 +311,13 @@ public sealed class AnswerViewTests : IDisposable
         Assert.Empty(cut.FindAll(".qa__source-link"));
     }
 
-    private IRenderedComponent<AnswerView> Render(AnswerRecord record, bool disclaimer = false, Guid? conversation = null) =>
+    private IRenderedComponent<AnswerView> Render(
+        AnswerRecord record, bool disclaimer = false, Guid? conversation = null, bool openSources = false) =>
         _context.Render<AnswerView>(p => p
             .Add(x => x.Record, record)
             .Add(x => x.Index, 0)
             .Add(x => x.ShowDisclaimer, disclaimer)
             .Add(x => x.BaseUri, BaseUri)
-            .Add(x => x.ConversationId, conversation));
+            .Add(x => x.ConversationId, conversation)
+            .Add(x => x.OpenSources, openSources));
 }

@@ -51,7 +51,7 @@ public sealed class ConversationPageTests : IDisposable
         Assert.Equal("New conversation", cut.Find("h1").TextContent);
         Assert.Equal("NO QUESTIONS YET", cut.Find(".conv__heading .d1-badge").TextContent.Trim());
         Assert.Equal(
-            ["What are the sump requirements for a UST in Illinois?", "How often must release detection results be kept on file?"],
+            ["What are the sump requirements for a UST in Illinois?", "How long must release detection results be kept on file?"],
             cut.FindAll("button.d1-card").Select(card => card.TextContent.Trim()));
     }
 
@@ -81,7 +81,7 @@ public sealed class ConversationPageTests : IDisposable
         IReadOnlyList<IElement> rows = cut.FindAll(".convlist__row");
         Assert.Equal(2, rows.Count);
         Assert.Equal("true", rows[0].GetAttribute("aria-current"));
-        Assert.Equal("1 answer · OPUS 5 · HIGH", rows[0].QuerySelector(".convlist__meta > span")!.TextContent);
+        Assert.Equal("1 answer · OPUS 5.5 · HIGH", rows[0].QuerySelector(".convlist__meta > span")!.TextContent);
         Assert.Equal("$2.16", rows[0].QuerySelector(".convlist__cost")!.TextContent);
         Assert.Null(rows[1].GetAttribute("aria-current"));
         Assert.Equal("0 answers · SONNET 5 · LOW", rows[1].QuerySelector(".convlist__meta > span")!.TextContent);
@@ -128,7 +128,7 @@ public sealed class ConversationPageTests : IDisposable
 
         Assert.Equal(2, cut.FindAll("select").Count);
         string preview = cut.Find(".settings__preview").TextContent;
-        Assert.Contains($"Opus 5, High: cold, so {Formatting.Money(estimate.ColdQuestion)} for the first question (measured)", preview, StringComparison.Ordinal);
+        Assert.Contains($"Opus 5.5, High: cold, so {Formatting.Money(estimate.ColdQuestion)} for the first question (measured)", preview, StringComparison.Ordinal);
         Assert.Contains($"Up to {Formatting.Money(estimate.WorstCaseCold)} if an answer runs to its output limit.", preview, StringComparison.Ordinal);
         Assert.DoesNotContain(CostPreview.LowLevelCaution, preview, StringComparison.Ordinal);
     }
@@ -142,12 +142,12 @@ public sealed class ConversationPageTests : IDisposable
 
         cut.FindAll("select")[1].Change(nameof(EffortLevel.Low));
 
-        Assert.Equal([(id, AnswerSettings.Create(ModelIds.ClaudeOpus5, EffortLevel.Low))], _store.SettingsChanges);
+        Assert.Equal([(id, AnswerSettings.Create(ModelIds.ClaudeOpus55, EffortLevel.Low))], _store.SettingsChanges);
         cut.WaitForAssertion(() =>
         {
             string preview = cut.Find(".settings__preview").TextContent;
-            Assert.Contains("Opus 5, Low: cold", preview, StringComparison.Ordinal);
-            Assert.Contains("(estimated)", preview, StringComparison.Ordinal);
+            Assert.Contains("Opus 5.5, Low: cold", preview, StringComparison.Ordinal);
+            Assert.Contains("(measured)", preview, StringComparison.Ordinal);
             Assert.Contains(CostPreview.LowLevelCaution, preview, StringComparison.Ordinal);
         });
     }
@@ -165,7 +165,7 @@ public sealed class ConversationPageTests : IDisposable
 
         // Nothing else changes when the prediction expires; the page refreshes itself.
         _time.Advance(TimeSpan.FromMinutes(56));
-        cut.WaitForAssertion(() => Assert.Contains("Opus 5, High: cold", cut.Find(".settings__preview").TextContent, StringComparison.Ordinal));
+        cut.WaitForAssertion(() => Assert.Contains("Opus 5.5, High: cold", cut.Find(".settings__preview").TextContent, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public sealed class ConversationPageTests : IDisposable
         IRenderedComponent<Conversation> cut = RenderAt(id);
 
         Assert.Empty(cut.FindAll("select"));
-        Assert.Equal("OPUS 5 · HIGH", cut.Find(".settings .d1-badge").TextContent.Trim());
+        Assert.Equal("OPUS 5.5 · HIGH", cut.Find(".settings .d1-badge").TextContent.Trim());
 
         cut.FindAll(".settings button").Single(button => button.TextContent.Contains("different settings", StringComparison.Ordinal)).Click();
 
@@ -369,8 +369,41 @@ public sealed class ConversationPageTests : IDisposable
         IElement live = cut.Find("article.qa--live");
         Assert.Equal("true", live.GetAttribute("aria-busy"));
         Assert.Contains("Assembling answer from documents", live.QuerySelector(".qa__assembling")!.TextContent, StringComparison.Ordinal);
-        Assert.Equal("Checking Section 175.410.", live.QuerySelector(".qa__thinking-live")!.TextContent);
+        Assert.Equal("Reasoning summary so far", live.QuerySelector("details.qa__reasoning > summary")!.TextContent);
+        Assert.Equal("Checking Section 175.410.", live.QuerySelector("details.qa__reasoning .qa__reasoning-text")!.TextContent);
         Assert.Equal("Stop", AskButton(cut).TextContent.Trim());
+    }
+
+    [Fact]
+    public void AnAnswerInFlight_WithNoThinkingYet_StillShowsTheReasoningArea_AndSaysNoneHasArrived()
+    {
+        Guid id = Guid.NewGuid();
+        _store.Publish(Answering(id));
+
+        IElement live = RenderAt(id).Find("article.qa--live");
+
+        IElement details = live.QuerySelector("details.qa__reasoning")!;
+        Assert.False(details.HasAttribute("open"));
+        Assert.Equal("No reasoning has arrived yet.", details.QuerySelector(".qa__reasoning-note")!.TextContent);
+    }
+
+    [Fact]
+    public void AStreamingStructuredAnswer_ShowsItsSummary_AndItsDetailCollapsed_AsBeingWritten()
+    {
+        Guid id = Guid.NewGuid();
+        _store.Publish(Answering(id) with
+        {
+            InProgress = Answering(id).InProgress! with { Segments = [new AnswerSegment("Summary\nYes.\n\nDetail\nUnder Section", [])] },
+        });
+
+        IElement live = RenderAt(id).Find("article.qa--live");
+
+        Assert.Equal("Yes.", live.QuerySelector(":scope > .answer-text")!.TextContent.Trim());
+        IElement detail = live.QuerySelector("details.qa__detail")!;
+        Assert.False(detail.HasAttribute("open"));
+        Assert.Equal("Detail · writing…", detail.QuerySelector("summary")!.TextContent);
+        Assert.Equal("Under Section", detail.QuerySelector(".answer-text")!.TextContent.Trim());
+        Assert.Null(live.QuerySelector(".qa__assembling"));
     }
 
     [Fact]
@@ -386,9 +419,9 @@ public sealed class ConversationPageTests : IDisposable
 
         // A fragment waits for the interval.
         _store.Publish(Streaming(id, thinking: "First thoughts."));
-        Assert.Empty(cut.FindAll(".qa__thinking-live"));
+        Assert.Empty(cut.FindAll(".qa__reasoning-text"));
         _time.Advance(TimeSpan.FromMilliseconds(100));
-        cut.WaitForAssertion(() => Assert.Equal("First thoughts.", cut.Find(".qa__thinking-live").TextContent));
+        cut.WaitForAssertion(() => Assert.Equal("First thoughts.", cut.Find(".qa__reasoning-text").TextContent));
 
         // More fragments, then the end, with no time passing: the end is never held back.
         _store.Publish(Streaming(id, thinking: "First thoughts. More."));
@@ -426,6 +459,21 @@ public sealed class ConversationPageTests : IDisposable
 
         // Without the query string, following the link would open the newest conversation instead of this one.
         Assert.Equal($"http://localhost/?c={id}#answer-0-source-1", cut.Find("a.answer-text__marker").GetAttribute("href"));
+    }
+
+    [Fact]
+    public void AnAddressNamingASource_OpensThatAnswersSources_Only()
+    {
+        Guid id = Guid.NewGuid();
+        _store.Publish(Committed(id) with { Answers = [TestData.Completed(), TestData.Completed(question: "And after?")] });
+
+        // As the Documents screen links back.
+        Navigation.NavigateTo($"/?c={id}#answer-1-source-1");
+        IRenderedComponent<Conversation> cut = _context.Render<Conversation>();
+
+        IReadOnlyList<IElement> sources = cut.FindAll(".qa__sources details");
+        Assert.False(sources[0].HasAttribute("open"));
+        Assert.True(sources[1].HasAttribute("open"));
     }
 
     [Theory]
